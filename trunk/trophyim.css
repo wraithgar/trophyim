@@ -1,0 +1,78 @@
+div#trophyimclient {
+}
+div#trophyimlogin {
+	text-align: center;
+}
+div#trophyimroster {
+	width: 200px;
+	height: 400px;
+	overflow: scroll;
+    clear: none;
+    float: left;
+}
+div#trophyimchat {
+	border: 1px black solid;
+    clear: right;
+    height: 300px;
+    float: left;
+}
+div#trophyimstatus {
+    width: 200px;
+	border: 2px black solid;
+    clear: both;
+}
+div#trophyimlog {
+	width: 480px;
+	height: 300px;
+	overflow: auto;
+}
+div.trophyimlogitem {
+	border: 1px black solid;
+}
+div.trophyimrosteritem {
+	border: 1px black solid;
+}
+div.trophyimrostergroup {
+	border: 2px blue solid;
+}
+div.trophyimrosterlabel {
+	font-weight: bold;
+}
+div.trophyimrosteraway {
+	color: #a00000;
+}
+div.trophyimrosteravailable {
+	font-weight: bold;
+	color: #ffffff;
+}
+div.trophyimrosterunavailable {
+	color: #808080;
+	font-style: italic;
+}
+div#trophyimchattabs {
+	border: 1px green solid;
+    width: 480px;
+    overflow: scroll;
+}
+div.trophyimchattab {
+    margin-right: 1px;
+    padding: 2px;
+	border: 1px green solid;
+    clear: none;
+    float: left;
+}
+div.trophyimchatbox { /*Collection of chat messages*/
+	height: 300px;
+	width: 480px;
+	overflow: auto;
+}
+input.trophyimchatinput {
+}
+div.trophyimchatmessage { /*Each individual chat message*/
+	white-space: pre-wrap;
+	width: 480px;
+    border-bottom: 1px black dotted;
+}
+div#trophyimstatuslist {
+	text-align: center;
+}
