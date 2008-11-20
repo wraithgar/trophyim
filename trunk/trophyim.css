@@ -1,3 +1,8 @@
+div.trophyimtabclose {
+    font-size: 8px;
+    text-align: right;
+    cursor: default;
+}
 div#trophyimclient {
 }
 div#trophyimlogin {
@@ -32,6 +37,11 @@ div.trophyimlogitem {
 div.trophyimrosteritem {
 	border: 1px black solid;
 }
+div.trophyimrosterjid {
+    display: none;
+}
+div.trophyimrostername {
+}
 div.trophyimrostergroup {
 	border: 2px blue solid;
 }
@@ -60,6 +70,7 @@ div.trophyimchattab {
 	border: 1px green solid;
     clear: none;
     float: left;
+    cursor: pointer;
 }
 div.trophyimchatbox { /*Collection of chat messages*/
 	height: 300px;
