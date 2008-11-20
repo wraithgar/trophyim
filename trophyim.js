@@ -4,10 +4,32 @@
 
     Copyright 2008 Michael Garvin
 */
+/*TODO dump
+Close chat tabs
+Active chats need to also know when presence changes
+HTML in messages (xslt?)
+TrophyIM.script_loaded doesn't work in IE, find better alternative
+Loglevel select on login instead of check box
+Optional user-specified resource
+Tie trophyim_bosh_[jsr]id into one cookie
+JSON encoding and offloading of roster/presence
+vcard support http://xmpp.org/extensions/xep-0153.html
+Select presence status/message
+auto-subscribe vs prompted subscribe based on config option
+roster management
+tab notifications for new incoming messages
+make sure makeChat() et al can handle empty resources
+    (offline chat capabilities)
+status indication in roster
+offline roster capablility
+better html layout for rosterGroup so member_jid doesn't need firstChild
+figure out how we want to handle presence from our own jid
+handling of this.changes duplicates in setPresene is ugly
+    maybe have renderRoster check for dupes instead
+*/
 var TROPHY_BOSH_SERVICE = '/proxy/xmpp-httpbind';  //Change to suit
 var TROPHY_LOG_LINES = 200;
-//TODO this should probably be a select element on the login page
-var TROPHY_LOGLEVEL = 0; //0=debug, 1=info, 2=warn, 3=error, 4=fatal
+var TROPHY_LOGLEVEL = 1; //0=debug, 1=info, 2=warn, 3=error, 4=fatal
 var TROPHYIM_VERSION = 0.1;
 
 /** File: trophyimclient.js
@@ -46,7 +68,8 @@ HTMLSnippets = {
     rosterGroup : "<div class='trophyimrostergroup'>\
         <div class='trophyimrosterlabel' /></div>",
     rosterItem : "<div class='trophyimrosteritem'\
-        onclick='TrophyIM.rosterClick(this)'/>",
+        onclick='TrophyIM.rosterClick(this)'><div class='trophyimrosterjid' />\
+        <div class='trophyimrostername' /></div>",
     statusDiv : "<div id='trophyimstatus'><span>Status:</span>\
         <span id='trophyimstatuslist'>Select box</span><br /><form>\
         <input type='button' value='disconnect' onclick='TrophyIM.logout()'/>\
@@ -58,7 +81,10 @@ HTMLSnippets = {
         <input type='button' value='Send' onclick='TrophyIM.sendMessage(this)' />\
         </form></div>",
     chatTab :
-        "<div class='trophyimchattab' onclick='TrophyIM.tabClick(this);' />"
+        "<div class='trophyimchattab' onclick='TrophyIM.tabClick(this);'>\
+            <div class='trophyimtabclose'\
+            onclick='TrophyIM.tabClose(this);'>x</div>\
+        </div>"
 };
 
 /** Class: DOMObjects
@@ -175,14 +201,61 @@ TrophyIM = {
     jsLoaded : function(script) {
         TrophyIM.scripts_loaded[TrophyIM.scripts_loaded.length] = script;
     },
+    /** Function: setCookie
+     *
+     *  Sets cookie name/value pair.  Date and path are auto-selected.
+     *
+     *  Parameters:
+     *    (String) name - the name of the cookie variable
+     *    (String) value - the value of the cookie variable
+     */
+    setCookie : function(name, value) {
+        expire = new Date();
+        expire.setDate(expire.getDate() + 365);
+        c = name + "=" + value + "; expires=" + expire.toGMTString();
+        document.cookie = c;
+    },
+    /** Function: delCookie
+     *
+     *  Deletes cookie
+     *
+     *  Parameters:
+     *    (String) name) - the name of the cookie to delete
+     */
+    delCookie : function(name) {
+        expire = new Date();
+        expire.setDate(expire.getDate() - 365);
+        c = name + "= ; expires=" + expire.toGMTString();
+        document.cookie = c;
+    },
+    /** Function: getCookies
+     *
+     *  Retrieves all cookies into an indexed object.  Inteneded to be called
+     *  once, at which time the app refers to the returned object instead of
+     *  re-parsing the cookie string every time.
+     *  Also each cookie is re-applied so as to refresh the expiry date
+     */
+    getCookies : function() {
+        cookies = {};
+        c_split = document.cookie.split(';');
+        for (i = 0; i < c_split.length; i++) {
+            cookie = c_split[i];
+            while (cookie.charAt(0)==' ') cookie = cookie.substring(1,cookie.length);
+            if (cookie.substr(0, 8) == "trophyim") {
+                nvpair = cookie.split("=", 2);
+                cookies[nvpair[0]] = nvpair[1];
+                TrophyIM.setCookie(nvpair[0], nvpair[1]);
+            }
+        }
+        return cookies;
+    },
     /** Function: load
      * 
      *  This function searches for the trophyimclient div and loads the client
      *  into it.
      */
     load : function() {
-        //TODO start using cookies to set up a session that remembers jid and
-        //session from both
+        TrophyIM.cookies = TrophyIM.getCookies();
         client_div = document.getElementById('trophyimclient');
         if (client_div) {
             TrophyIM.scripts_loaded = new Array();
@@ -191,6 +264,8 @@ TrophyIM = {
             document.getElementsByTagName('head')[0].appendChild(
             DOMObjects.getHTML('cssLink'));
             //Load other .js scripts needed
+            document.getElementsByTagName('head')[0].appendChild(
+            DOMObjects.getScript('json2.js'));
             document.getElementsByTagName('head')[0].appendChild(
             DOMObjects.getScript('strophejs/strophe.js'));
             document.getElementsByTagName('head')[0].appendChild(
@@ -207,21 +282,40 @@ TrophyIM = {
     },
     /**  Function: showlogin
      *
-     *   This function clears out the IM box and redisplays the login page,
+     *   This function clears out the IM box and either redisplays the login
+     *   page, or re-attaches to srophe
      *   preserving the logging div if it exists.
      */
     showLogin : function() {
-        //TODO fix this so it works in IE again, IE doesn't fire onload for
-        //<script> elements.
-        //if(TrophyIM.scripts_loaded.length == 4) {
-        if(TrophyIM.scripts_loaded.length == 4 ||
-        document.getElementsByTagName('script').length == 5) {
-            logging_div = TrophyIM.clearClient();
-            TrophyIM.client_div.appendChild(DOMObjects.getHTML('loginPage'));
-            if(logging_div) {
-                TrophyIM.client_div.appendChild(logging_div);
-                TrophyIM.logging_div =
-                document.getElementById('trophyimlogging');
+        //if(TrophyIM.scripts_loaded.length == 5) {
+        if(TrophyIM.scripts_loaded.length == 5 ||
+        document.getElementsByTagName('script').length == 6) {
+            if (false && TrophyIM.cookies['trophy_im_jid'] &&
+            TrophyIM.cookies['trophy_im_sid'] &&
+            TrophyIM.cookies['trophy_im_rid']) {
+                TrophyIM.log(Strophe.LogLevel.INFO, 'Attempting Strophe attach.');
+                TrophyIM.connection = new Strophe.Connection(TROPHY_BOSH_SERVICE);
+                TrophyIM.connection.rawInput = TrophyIM.rawInput;
+                TrophyIM.connection.rawOutput = TrophyIM.rawOutput;
+                Strophe.log = TrophyIM.log;
+                TrophyIM.connection.attach(TrophyIM.cookies['trophy_im_jid'],
+                TrophyIM.cookies['trophy_im_sid'],
+                TrophyIM.cookies['trophy_im_rid'], TrophyIM.onConnect);
+            } else {
+                logging_div = TrophyIM.clearClient();
+                TrophyIM.client_div.appendChild(DOMObjects.getHTML('loginPage'));
+                if(logging_div) {
+                    TrophyIM.client_div.appendChild(logging_div);
+                    TrophyIM.logging_div =
+                    document.getElementById('trophyimlogging');
+                }
+                if (TrophyIM.cookies['trophyimjid']) {
+                    document.getElementById('trophyimjid').value =
+                    TrophyIM.cookies['trophyimjid'];
+                }
+                if (TrophyIM.cookies['trophyimlogging']) {
+                    document.getElementById('trophyimlogging').checked = true;
+                }
             }
         } else {
             //Call ourselves again in half a second to see if scripts are done
@@ -265,30 +359,36 @@ TrophyIM = {
      *
      *  This function logs into server using information given on login page.
      *  Since the login page is where the logging checkbox is, it makes or
-     *  removes the logging div accordingly.
+     *  removes the logging div and cookie accordingly.
      *
      */
     login : function() {
-        if (document.getElementById('trophyimlogging').checked &&
-        !document.getElementById('trophyimlog')) {
-            TrophyIM.client_div.appendChild(DOMObjects.getHTML('loggingDiv'));
-            TrophyIM.logging_div = document.getElementById('trophyimlog');
-        } else if (document.getElementById('trophyimlog')) {
-            TrophyIM.client_div.removeChild(document.getElementById(
-            'trophyimlog'));
-            TrophyIM.logging_div = null;
+        if (document.getElementById('trophyimlogging').checked) {
+            TrophyIM.setCookie('trophyimlogging', 1);
+            if (!document.getElementById('trophyimlog')) {
+                TrophyIM.client_div.appendChild(DOMObjects.getHTML('loggingDiv'));
+                TrophyIM.logging_div = document.getElementById('trophyimlog');
+            }
+        } else {
+            TrophyIM.delCookie('trophyimlogging');
+            if (document.getElementById('trophyimlog')) {
+                TrophyIM.client_div.removeChild(document.getElementById(
+                'trophyimlog'));
+                TrophyIM.logging_div = null;
+            }
         }
         TrophyIM.connection = new Strophe.Connection(TROPHY_BOSH_SERVICE);
         TrophyIM.connection.rawInput = TrophyIM.rawInput;
         TrophyIM.connection.rawOutput = TrophyIM.rawOutput;
         Strophe.log = TrophyIM.log;
-        //TODO user-specified option
-        jid  = document.getElementById('trophyimjid').value + '/TrophyIM';
+        barejid  = document.getElementById('trophyimjid').value
+        fulljid = barejid + '/TrophyIM';
+        TrophyIM.setCookie('trophyimjid', barejid);
         password = document.getElementById('trophyimpass').value;
         button = document.getElementById('trophyimconnect');
         if (button.value == 'connect') {
             button.value = 'disconnect';
-            TrophyIM.connection.connect(jid, password, TrophyIM.onConnect);
+            TrophyIM.connection.connect(fulljid, password, TrophyIM.onConnect);
         } else {
             button.value = 'connect';
             TrophyIM.connection.disconnect();
@@ -296,7 +396,9 @@ TrophyIM = {
 
     },
     logout : function() {
-        //TODO clear chats
+        TrophyIM.delCookie('trophyim_bosh_jid');
+        TrophyIM.delCookie('trophyim_bosh_sid');
+        TrophyIM.delCookie('trophyim_bosh_rid');
         for (chat in TrophyIM.activeChats['divs']) {
             delete TrophyIM.activeChats['divs'][chat];
         }
@@ -309,11 +411,17 @@ TrophyIM = {
             TrophyIM.log(Strophe.LogLevel.INFO, 'Strophe is connecting.');
         } else if (status == Strophe.Status.CONNFAIL) {
             TrophyIM.log(Strophe.LogLevel.INFO, 'Strophe failed to connect.');
-            document.getElementById('trophyimconnect').value='connect';
+            TrophyIM.delCookie('trophyim_bosh_jid');
+            TrophyIM.delCookie('trophyim_bosh_sid');
+            TrophyIM.delCookie('trophyim_bosh_rid');
+            TrophyIM.showLogin();
         } else if (status == Strophe.Status.DISCONNECTING) {
             TrophyIM.log(Strophe.LogLevel.INFO, 'Strophe is disconnecting.');
         } else if (status == Strophe.Status.DISCONNECTED) {
             TrophyIM.log(Strophe.LogLevel.INFO, 'Strophe is disconnected.');
+            TrophyIM.delCookie('trophyim_bosh_jid');
+            TrophyIM.delCookie('trophyim_bosh_sid');
+            TrophyIM.delCookie('trophyim_bosh_rid');
             TrophyIM.showLogin();
         } else if (status == Strophe.Status.CONNECTED) {
             TrophyIM.log(Strophe.LogLevel.INFO, 'Strophe is connected.');
@@ -327,6 +435,9 @@ TrophyIM = {
      *  registers all the handlers for Strophe to call in the client.
      */
     showClient : function() {
+        //TrophyIM.setCookie('trophyim_bosh_jid', BOSH_JID);
+        //TrophyIM.setCookie('trophyim_bosh_sid', BOSH_SID);
+        //TrophyIM.setCookie('trophyim_bosh_rid', BOSH_RID);
         logging_div = TrophyIM.clearClient();
         TrophyIM.client_div.appendChild(DOMObjects.getHTML('rosterDiv'));
         TrophyIM.client_div.appendChild(DOMObjects.getHTML('chatArea'));
@@ -336,7 +447,7 @@ TrophyIM = {
             TrophyIM.logging_div = document.getElementById('trophyimlog');
         }
         TrophyIM.rosterObj = new TrophyIMRoster();
-        TrophyIM.connection.addHandler(TrophyIM.onVersion, "jabber:iq:version",
+        TrophyIM.connection.addHandler(TrophyIM.onVersion, Strophe.NS.VERSION,
         'iq', null, null, null);
         TrophyIM.connection.addHandler(TrophyIM.onRoster, Strophe.NS.ROSTER,
         'iq', null, null, null);
@@ -347,7 +458,6 @@ TrophyIM = {
         //Get roster then announce presence.
         TrophyIM.connection.send($iq({type: 'get', xmlns: Strophe.NS.CLIENT}).c(
         'query', {xmlns: Strophe.NS.ROSTER}).tree());
-        //TODO make presence user-selectable?
         TrophyIM.connection.send($pres().tree());
         setTimeout("TrophyIM.renderRoster()", 1000);
     },
@@ -357,7 +467,6 @@ TrophyIM = {
      *  one exists
      */
     clearClient : function() {
-        //TODO this still appears to clobber existing logging elements
         if(TrophyIM.logging_div) {
             logging_div = TrophyIM.client_div.removeChild(
             document.getElementById('trophyimlog'));
@@ -432,15 +541,12 @@ TrophyIM = {
         TrophyIM.rosterObj.setPresence(from, priority, show, status);
         TrophyIM.log(Strophe.LogLevel.INFO, "Got presence " + from + " " +
         priority + " " + show + " " + status);
-        //TODO auto-subscribe vs prompted subscribe based on config option
         return true;
     },
     /** Function: onMessage
      *
      *  Message handler
      */
-     //TODO use xslt to turn <body> into <div id=trophyimchatmessage> and just
-     //use that
     onMessage : function(msg) {
         TrophyIM.log(Strophe.LogLevel.DEBUG, "Message handler");
         to = msg.getAttribute('to');
@@ -464,7 +570,6 @@ TrophyIM = {
                     msg_div.appendChild(document.createTextNode(message));
                     chat_box[0].appendChild(msg_div);
                 }
-                //TODO if not active, flag tab somehow
             }
         }
         return true;
@@ -474,7 +579,6 @@ TrophyIM = {
      *  Make sure chat window to given fulljid exists
      */
     makeChat : function(jid) {
-        //TODO make sure resource is ok being empty for eventual offline chat
         barejid = Strophe.getBareJidFromJid(jid);
         if (!TrophyIM.activeChats['divs'][barejid]) {
             chat_area = document.getElementById('trophyimchat');
@@ -503,7 +607,6 @@ TrophyIM = {
     showChat : function(jid) {
         if (TrophyIM.activeChats['current'] &&
         TrophyIM.activeChats['current'] != jid) {
-            //TODO visually mark tab as active
             chat_area = document.getElementById('trophyimchat');
             active_box =
             chat_area.getElementsByClassName('trophyimchatbox')[0].parentNode;
@@ -602,27 +705,35 @@ TrophyIM = {
         member_divs = group_div.getElementsByClassName('trophyimrosteritem');
         for (m = 0; m < member_divs.length; m++) {
             member_div = member_divs[m];
-            member_jid = member_div.firstChild.nodeValue; //FIXME better layout
+            member_jid = member_div.firstChild.nodeValue;
             changed_jid = changes[0];
             if (member_jid > changed_jid) {
                 if (changed_jid in group_members) {
                     new_presence = TrophyIM.rosterObj.getPresence(changed_jid);
                     if(new_presence) {
-                        //TODO show away status (trophyimrosteraway/available)
+                        new_contact =
+                        TrophyIM.rosterObj.getContact(changed_jid);
                         new_member = DOMObjects.getHTML('rosterItem');
-                        new_member.appendChild(document.createTextNode(changed_jid));
+                        new_member.getElementsByClassName(
+                        'trophyimrosterjid')[0].appendChild(
+                        document.createTextNode(changed_jid));
+                        new_name = new_contact['name'] ?
+                        new_contact['name'] : changed_jid;
+                        new_member.getElementsByClassName(
+                        'trophyimrostername')[0].appendChild(
+                        document.createTextNode(new_name));
                         group_div.insertBefore(new_member, member_div);
                     } else {
-                        //TODO config item to show offline
+                        //show offline contacts
                     }
                 }
                 changes.shift();
             } else if (member_jid == changed_jid) {
                 member_presence = TrophyIM.rosterObj.getPresence(member_jid);
                 if(member_presence) {
-                    //TODO show away status (trophyimrosteraway/available)
+                    //show away status
                 } else {
-                    //TODO config item to show offline
+                    //show offline status
                     group_div.removeChild(member_div);
                 }
                 changes.shift();
@@ -632,12 +743,21 @@ TrophyIM = {
             if (changes[0] in group_members) {
                 new_presence = TrophyIM.rosterObj.getPresence(changes[0]);
                 if(new_presence) {
-                    //TODO show away status (trophyimrosteraway/available)
+                    new_contact =
+                    TrophyIM.rosterObj.getContact(changes[0]);
+                    //show away
                     new_member = DOMObjects.getHTML('rosterItem');
-                    new_member.appendChild(document.createTextNode(changes[0]));
+                    new_member.getElementsByClassName(
+                    'trophyimrosterjid')[0].appendChild(
+                    document.createTextNode(changes[0]));
+                    new_name = new_contact['name'] ?
+                    new_contact['name'] : changes[0];
+                    new_member.getElementsByClassName(
+                    'trophyimrostername')[0].appendChild(
+                    document.createTextNode(new_name));
                     group_div.appendChild(new_member);
                 } else {
-                    //TODO config item to show offline
+                    //show offline
                 }
             }
             changes.shift();
@@ -648,7 +768,7 @@ TrophyIM = {
      *  Handles actions when a roster item is clicked
      */
     rosterClick : function(roster_item) {
-        barejid = roster_item.firstChild.nodeValue;
+        barejid = roster_item.getElementsByClassName('trophyimrosterjid')[0].firstChild.nodeValue;
         presence = TrophyIM.rosterObj.getPresence(barejid);
         if (presence && presence['resource']) {
             fulljid = barejid + "/" + presence['resource'];
@@ -663,8 +783,26 @@ TrophyIM = {
      *  Handles actions when a chat tab is clicked
      */
     tabClick : function(tab_item) {
-        barejid = tab_item.firstChild.nodeValue;
+        barejid = tab_item.lastChild.nodeValue;
         TrophyIM.showChat(barejid);
+    },
+    /** Function: tabClose
+     *
+     *  Closes chat tab
+     */
+    tabClose : function(tab_item) {
+        barejid = tab_item.parentNode.lastChild.nodeValue;
+        if (TrophyIM.activeChats['current'] == barejid) {
+            if (tab_item.parentNode.nextSibling) {
+                newjid = tab_item.parentNode.nextSibling.lastChild.nodeValue;
+                TrophyIM.showChat(newjid);
+            } else if (tab_item.parentNode.prevSibling) {
+                newjid = tab_item.parentNode.prevSibling.lastChild.nodeValue;
+                TrophyIM.showChat(newjid);
+            }
+        }
+
+        //delete tab, showchat for next tab, if one exists
     },
     /** Function: sendMessage
      *
@@ -766,8 +904,6 @@ function TrophyIMRoster() {
     this.setPresence = function(fulljid, priority, show, status) {
         resource = Strophe.getResourceFromJid(fulljid);
         jid = Strophe.getBareJidFromJid(fulljid);
-        //TODO figure out what to do about own presence from other resources if
-        //we're not in our own roster
         if(show != 'unavailable') {
             if (!this.roster[jid]) {
                 this.addContact(jid, 'not-in-roster');
@@ -783,7 +919,6 @@ function TrophyIMRoster() {
         this.roster[jid]['presence'][resource]) {
             delete this.roster[jid]['presence'][resource];
         }
-        //TODO this is ugly
         found = false;
         for (x in this.changes) {
             if (this.changes[x] == jid) {
