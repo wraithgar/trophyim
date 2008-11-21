@@ -5,7 +5,6 @@
     Copyright 2008 Michael Garvin
 */
 /*TODO dump
-Close chat tabs
 Active chats need to also know when presence changes
 HTML in messages (xslt?)
 TrophyIM.script_loaded doesn't work in IE, find better alternative
@@ -17,15 +16,15 @@ vcard support http://xmpp.org/extensions/xep-0153.html
 Select presence status/message
 auto-subscribe vs prompted subscribe based on config option
 roster management
-tab notifications for new incoming messages
 make sure makeChat() et al can handle empty resources
     (offline chat capabilities)
 status indication in roster
 offline roster capablility
-better html layout for rosterGroup so member_jid doesn't need firstChild
 figure out how we want to handle presence from our own jid
-handling of this.changes duplicates in setPresene is ugly
+handling of this.changes dupes in setPresene is ugly
     maybe have renderRoster check for dupes instead
+layout overhaul
+chat tab div needs to stop wrapping
 */
 var TROPHY_BOSH_SERVICE = '/proxy/xmpp-httpbind';  //Change to suit
 var TROPHY_LOG_LINES = 200;
@@ -77,7 +76,7 @@ HTMLSnippets = {
     chatArea : "<div id='trophyimchat'><div id='trophyimchattabs' /></div>",
     chatBox : "<div><div class='trophyimchatbox' />\
         <form name='chat' onsubmit='TrophyIM.sendMessage(this); return(false);'>\
-        <input type='text' class='trophyimchatinput' onsubmit='return(false);'/>\
+        <textarea class='trophyimchatinput' rows='3' cols='50'></textarea>\
         <input type='button' value='Send' onclick='TrophyIM.sendMessage(this)' />\
         </form></div>",
     chatTab :
@@ -339,6 +338,7 @@ TrophyIM = {
             msg_div.className = 'trophyimlogitem';
             msg_div.appendChild(document.createTextNode(msg));
             TrophyIM.logging_div.appendChild(msg_div);
+            TrophyIM.logging_div.scrollTop = TrophyIM.logging_div.scrollHeight;
         }
     },
     /** Function: rawInput
@@ -569,6 +569,11 @@ TrophyIM = {
                     msg_div.className = 'trophyimchatmessage';
                     msg_div.appendChild(document.createTextNode(message));
                     chat_box[0].appendChild(msg_div);
+                    chat_box[0].scrollTop = chat_box[0].scrollHeight;
+                }
+                if (TrophyIM.activeChats['current'] != barejid) {
+                    TrophyIM.activeChats['divs'][barejid]['tab'].className =
+                    "trophyimchattab trophyimchattab_a";
                 }
             }
         }
@@ -585,6 +590,7 @@ TrophyIM = {
             chat_tabs = document.getElementById('trophyimchattabs');
             if (chat_area && chat_tabs) {
                 chat_tab = DOMObjects.getHTML('chatTab');
+                chat_tab.className = "trophyimchattab trophyimchattab_b";
                 chat_tab.appendChild(document.createTextNode(barejid));
                 chat_tab = chat_tabs.appendChild(chat_tab);
                 chat_box = chat_area.appendChild(DOMObjects.getHTML('chatBox'))
@@ -598,24 +604,29 @@ TrophyIM = {
             chat_box = chat_area.appendChild(chat_box);
             TrophyIM.activeChats['divs'][barejid]['box'] = chat_box;
             TrophyIM.activeChats['current'] = barejid;
+            TrophyIM.activeChats['divs'][barejid]['tab'].className =
+            "trophyimchattab trophyimchattab_f";
         }
     },
     /** Function showChat
      *
      *  Make chat box to given barejid active
      */
-    showChat : function(jid) {
+    showChat : function(barejid) {
         if (TrophyIM.activeChats['current'] &&
-        TrophyIM.activeChats['current'] != jid) {
+        TrophyIM.activeChats['current'] != barejid) {
             chat_area = document.getElementById('trophyimchat');
             active_box =
             chat_area.getElementsByClassName('trophyimchatbox')[0].parentNode;
             active_divs =
             TrophyIM.activeChats['divs'][TrophyIM.activeChats['current']];
             active_divs['box'] = chat_area.removeChild(active_box);
-            TrophyIM.activeChats['divs'][jid]['box'] =
-            chat_area.appendChild(TrophyIM.activeChats['divs'][jid]['box']);
-            TrophyIM.activeChats['current'] = jid;
+            active_divs['tab'].className = "trophyimchattab trophyimchattab_b";
+            TrophyIM.activeChats['divs'][barejid]['box'] =
+            chat_area.appendChild(TrophyIM.activeChats['divs'][barejid]['box']);
+            TrophyIM.activeChats['current'] = barejid;
+            TrophyIM.activeChats['divs'][barejid]['tab'].className =
+            "trophyimchattab trophyimchattab_f";
         }
     },
     /** Function: renderRoster
@@ -784,7 +795,9 @@ TrophyIM = {
      */
     tabClick : function(tab_item) {
         barejid = tab_item.lastChild.nodeValue;
-        TrophyIM.showChat(barejid);
+        if (TrophyIM.activeChats['divs'][barejid]) {
+            TrophyIM.showChat(barejid);
+        }
     },
     /** Function: tabClose
      *
@@ -799,10 +812,14 @@ TrophyIM = {
             } else if (tab_item.parentNode.prevSibling) {
                 newjid = tab_item.parentNode.prevSibling.lastChild.nodeValue;
                 TrophyIM.showChat(newjid);
+            } else { //no other active chat
+                chat_area.removeChild(document.getElementsByClassName('trophyimchatbox')[0].parentNode);
+                delete TrophyIM.activeChats['current'];
             }
         }
-
-        //delete tab, showchat for next tab, if one exists
+        delete TrophyIM.activeChats['divs'][barejid];
+        //delete tab
+        tab_item.parentNode.parentNode.removeChild(tab_item.parentNode);
     },
     /** Function: sendMessage
      *
@@ -825,8 +842,10 @@ TrophyIM = {
             msg_div = document.createElement('div');
             msg_div.className = 'trophyimchatmessage';
             msg_div.appendChild(document.createTextNode("Me:\n" + message));
-            active_chat['box'].getElementsByClassName(
-            'trophyimchatbox')[0].appendChild(msg_div);
+            chat_box = 
+            active_chat['box'].getElementsByClassName('trophyimchatbox')[0];
+            chat_box.appendChild(msg_div);
+            chat_box.scrollTop = chat_box.scrollHeight;
         }
         message_input.value = '';
     }
