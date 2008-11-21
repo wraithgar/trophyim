@@ -5,8 +5,6 @@
     Copyright 2008 Michael Garvin
 */
 /*TODO dump
-Incoming new chats break the UI
-Duplicate roster entries happen when contacts reconnect
 Active chats need to also know when presence changes
 HTML in messages (xslt?)
 TrophyIM.script_loaded doesn't work in IE, find better alternative
@@ -561,7 +559,11 @@ TrophyIM = {
             barejid = Strophe.getBareJidFromJid(from).toLowerCase();
             contact = TrophyIM.rosterObj.roster[barejid]['contact'];
             if (contact) { //Do we know you?
-                message  = contact['name'] + " (" + barejid + ")\n";
+                if (contact['name']) {
+                    message  = contact['name'] + " (" + barejid + "): ";
+                } else {
+                    message = contact['jid'] + ": ";
+                }
                 message += Strophe.getText(body);
                 TrophyIM.makeChat(from); //Make sure we have a chat window
                 chat_box = TrophyIM.activeChats['divs'][barejid]['box']
@@ -573,42 +575,38 @@ TrophyIM = {
                     chat_box[0].appendChild(msg_div);
                     chat_box[0].scrollTop = chat_box[0].scrollHeight;
                 }
-                if (TrophyIM.activeChats['current'] != barejid) {
-                    TrophyIM.activeChats['divs'][barejid]['tab'].className =
-                    "trophyimchattab trophyimchattab_a";
-                }
             }
         }
         return true;
     },
     /** Function: makeChat
      *
-     *  Make sure chat window to given fulljid exists
+     *  Make sure chat window to given fulljid exists, switching chat context to
+     *  given resource
      */
-    makeChat : function(jid) {
-        barejid = Strophe.getBareJidFromJid(jid);
+    makeChat : function(fulljid) {
+        barejid = Strophe.getBareJidFromJid(fulljid);
         if (!TrophyIM.activeChats['divs'][barejid]) {
-            chat_area = document.getElementById('trophyimchat');
             chat_tabs = document.getElementById('trophyimchattabs');
-            if (chat_area && chat_tabs) {
-                chat_tab = DOMObjects.getHTML('chatTab');
-                chat_tab.className = "trophyimchattab trophyimchattab_b";
-                chat_tab.appendChild(document.createTextNode(barejid));
-                chat_tab = chat_tabs.appendChild(chat_tab);
-                chat_box = chat_area.appendChild(DOMObjects.getHTML('chatBox'))
-                TrophyIM.activeChats['divs'][barejid] = {jid:jid, tab:chat_tab,
-                box:chat_box};
+            chat_tab = DOMObjects.getHTML('chatTab');
+            chat_tab.className = "trophyimchattab trophyimchattab_a";
+            chat_tab.appendChild(document.createTextNode(barejid));
+            chat_tab = chat_tabs.appendChild(chat_tab);
+            chat_box = DOMObjects.getHTML('chatBox');
+            TrophyIM.activeChats['divs'][barejid] = {jid:fulljid, tab:chat_tab,
+            box:chat_box};
+            if (!TrophyIM.activeChats['current']) { //We're the first
+                TrophyIM.activeChats['current'] = barejid;
+                active_divs = TrophyIM.activeChats['divs'][barejid];
+                chat_area = document.getElementById('trophyimchat');
+                chat_area.appendChild(chat_box);
+                active_divs['box'] = chat_box;
+                active_divs['tab'].className =
+                "trophyimchattab trophyimchattab_f";
             }
         }
         TrophyIM.activeChats['divs'][barejid]['resource'] =
-        Strophe.getResourceFromJid(jid);
-        if (!TrophyIM.activeChats['current']) { //We're the first
-            chat_box = chat_area.appendChild(chat_box);
-            TrophyIM.activeChats['divs'][barejid]['box'] = chat_box;
-            TrophyIM.activeChats['current'] = barejid;
-            TrophyIM.activeChats['divs'][barejid]['tab'].className =
-            "trophyimchattab trophyimchattab_f";
-        }
+        Strophe.getResourceFromJid(fulljid);
     },
     /** Function showChat
      *
@@ -718,7 +716,8 @@ TrophyIM = {
         member_divs = group_div.getElementsByClassName('trophyimrosteritem');
         for (m = 0; m < member_divs.length; m++) {
             member_div = member_divs[m];
-            member_jid = member_div.firstChild.nodeValue;
+            member_jid = member_div.getElementsByClassName(
+            'trophyimrosterjid')[0].firstChild.nodeValue;
             changed_jid = changes[0];
             if (member_jid > changed_jid) {
                 if (changed_jid in group_members) {
