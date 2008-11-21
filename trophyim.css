@@ -2,6 +2,10 @@ div.trophyimtabclose {
     font-size: 8px;
     text-align: right;
     cursor: default;
+    float: right;
+    border: 1px black solid;
+    margin-left: 1px;
+    padding-left: 1px;
 }
 div#trophyimclient {
 }
@@ -18,7 +22,6 @@ div#trophyimroster {
 div#trophyimchat {
 	border: 1px black solid;
     clear: right;
-    height: 300px;
     float: left;
 }
 div#trophyimstatus {
@@ -62,26 +65,36 @@ div.trophyimrosterunavailable {
 div#trophyimchattabs {
 	border: 1px green solid;
     width: 480px;
-    overflow: scroll;
+    overflow: auto;
 }
 div.trophyimchattab {
     margin-right: 1px;
     padding: 2px;
-	border: 1px green solid;
     clear: none;
     float: left;
     cursor: pointer;
 }
+div.trophyimchattab_f { /*Foreground*/
+	border: 2px blue solid;
+}
+div.trophyimchattab_b { /*Background*/
+	border: 1px green solid;
+    margin: 1px;
+}
+div.trophyimchattab_a { /*Alert (background/has new message)*/
+	border: 1px red solid;
+    margin: 1px;
+}
 div.trophyimchatbox { /*Collection of chat messages*/
 	height: 300px;
 	width: 480px;
-	overflow: auto;
+	overflow: scroll;
 }
-input.trophyimchatinput {
+textarea.trophyimchatinput {
 }
 div.trophyimchatmessage { /*Each individual chat message*/
 	white-space: pre-wrap;
-	width: 480px;
+	width: 100%;
     border-bottom: 1px black dotted;
 }
 div#trophyimstatuslist {
