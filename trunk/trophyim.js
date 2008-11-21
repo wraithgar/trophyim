@@ -5,6 +5,8 @@
     Copyright 2008 Michael Garvin
 */
 /*TODO dump
+Incoming new chats break the UI
+Duplicate roster entries happen when contacts reconnect
 Active chats need to also know when presence changes
 HTML in messages (xslt?)
 TrophyIM.script_loaded doesn't work in IE, find better alternative
@@ -29,7 +31,7 @@ chat tab div needs to stop wrapping
 var TROPHY_BOSH_SERVICE = '/proxy/xmpp-httpbind';  //Change to suit
 var TROPHY_LOG_LINES = 200;
 var TROPHY_LOGLEVEL = 1; //0=debug, 1=info, 2=warn, 3=error, 4=fatal
-var TROPHYIM_VERSION = 0.1;
+var TROPHYIM_VERSION = "0.2-dev";
 
 /** File: trophyimclient.js
  *  A JavaScript front-end for strophe.js
@@ -556,7 +558,7 @@ TrophyIM = {
 
         if ((type == 'chat' || type == 'normal') && elems.length > 0) {
             body = elems[0]
-            barejid = Strophe.getBareJidFromJid(from);
+            barejid = Strophe.getBareJidFromJid(from).toLowerCase();
             contact = TrophyIM.rosterObj.roster[barejid]['contact'];
             if (contact) { //Do we know you?
                 message  = contact['name'] + " (" + barejid + ")\n";
@@ -879,23 +881,24 @@ function TrophyIMRoster() {
      */
     this.addContact = function(jid, subscription, name, groups) {
         contact = {jid:jid, subscription:subscription, name:name, groups:groups}
-        if (this.roster[jid]) {
-            this.roster[jid]['contact'] = contact;
+        jid_lower = jid.toLowerCase();
+        if (this.roster[jid_lower]) {
+            this.roster[jid_lower]['contact'] = contact;
         } else {
-            this.roster[jid] = {contact:contact};
+            this.roster[jid_lower] = {contact:contact};
         }
         if (groups) { //Add to all listed groups
             for (g = 0; g < groups.length; g++) {
                 if (!this.groups[groups[g]]) {
                     this.groups[groups[g]] = {};
                 }
-                this.groups[groups[g]][jid] = jid;
+                this.groups[groups[g]][jid_lower] = jid_lower;
             }
         } else { //Add to empty name group
             if (!this.groups['']) {
                 this.groups[''] = {};
             }
-            this.groups[''][jid] = jid;
+            this.groups[''][jid_lower] = jid_lower;
         }
     }
     /** Function: getContact
@@ -905,7 +908,7 @@ function TrophyIMRoster() {
      *  Parameter: (String) jid - jid to return
      */
     this.getContact = function(jid) {
-        roster_entry = this.roster[jid];
+        roster_entry = this.roster[jid.toLowerCase()];
         if (roster_entry) {
             return roster_entry['contact'];
         }
@@ -923,30 +926,31 @@ function TrophyIMRoster() {
     this.setPresence = function(fulljid, priority, show, status) {
         resource = Strophe.getResourceFromJid(fulljid);
         jid = Strophe.getBareJidFromJid(fulljid);
+        jid_lower = jid.toLowerCase();
         if(show != 'unavailable') {
-            if (!this.roster[jid]) {
+            if (!this.roster[jid_lower]) {
                 this.addContact(jid, 'not-in-roster');
             }
             presence = {
                 resource:resource, priority:priority, show:show, status:status
             }
-            if (!this.roster[jid]['presence']) {
-                this.roster[jid]['presence'] = {}
+            if (!this.roster[jid_lower]['presence']) {
+                this.roster[jid_lower]['presence'] = {}
             }
-            this.roster[jid]['presence'][resource] = presence
-        } else if (this.roster[jid] && this.roster[jid]['presence'] &&
-        this.roster[jid]['presence'][resource]) {
-            delete this.roster[jid]['presence'][resource];
+            this.roster[jid_lower]['presence'][resource] = presence
+        } else if (this.roster[jid_lower] && this.roster[jid_lower]['presence'] &&
+        this.roster[jid_lower]['presence'][resource]) {
+            delete this.roster[jid_lower]['presence'][resource];
         }
         found = false;
         for (x in this.changes) {
-            if (this.changes[x] == jid) {
+            if (this.changes[x] == jid_lower) {
                 found = true;
                 break;
             }
         }
         if (!found) {
-            this.changes[this.changes.length] = jid;
+            this.changes[this.changes.length] = jid_lower;
         }
         this.changes.sort();
     }
@@ -959,10 +963,11 @@ function TrophyIMRoster() {
      */
     this.getPresence = function(fulljid) {
         jid = Strophe.getBareJidFromJid(fulljid);
+        jid_lower = jid.toLowerCase()
         current = null;
-        if (this.roster[jid] && this.roster[jid]['presence']) {
-            for (var resource in this.roster[jid]['presence']) {
-                presence = this.roster[jid]['presence'][resource];
+        if (this.roster[jid_lower] && this.roster[jid_lower]['presence']) {
+            for (var resource in this.roster[jid_lower]['presence']) {
+                presence = this.roster[jid_lower]['presence'][resource];
                 if (current == null) {
                     current = presence
                 } else {
