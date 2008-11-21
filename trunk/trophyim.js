@@ -5,6 +5,7 @@
     Copyright 2008 Michael Garvin
 */
 /*TODO dump
+Fix whatever's preventing this from working in other browsers
 HTML in messages (xslt?)
 TrophyIM.script_loaded doesn't work in IE, find better alternative
 Loglevel select on login instead of check box
@@ -23,6 +24,8 @@ handling of this.changes dupes in setPresene is ugly
     maybe have renderRoster check for dupes instead
 layout overhaul
 chat tab div needs to stop wrapping
+Notifications of closed chats
+Notifications of typing
 */
 var TROPHY_BOSH_SERVICE = '/proxy/xmpp-httpbind';  //Change to suit
 var TROPHY_LOG_LINES = 200;
@@ -79,8 +82,9 @@ HTMLSnippets = {
         </form></div>",
     chatTab :
         "<div class='trophyimchattab' onclick='TrophyIM.tabClick(this);'>\
-            <div class='trophyimtabclose'\
+            <div class='trophyimchattabjid' /><div class='trophyimtabclose'\
             onclick='TrophyIM.tabClose(this);'>x</div>\
+            <div class='trophyimchattabname' />\
         </div>"
 };
 
@@ -592,7 +596,12 @@ TrophyIM = {
             chat_tabs = document.getElementById('trophyimchattabs');
             chat_tab = DOMObjects.getHTML('chatTab');
             chat_tab.className = "trophyimchattab trophyimchattab_a";
-            chat_tab.appendChild(document.createTextNode(barejid));
+            chat_tab.getElementsByClassName('trophyimchattabjid')[0].appendChild(
+            document.createTextNode(barejid));
+            contact = TrophyIM.rosterObj.getContact(barejid);
+            tab_name = contact['name'] ? contact['name'] : barejid;
+            chat_tab.getElementsByClassName('trophyimchattabname')[0].appendChild(
+            document.createTextNode(tab_name));
             chat_tab = chat_tabs.appendChild(chat_tab);
             chat_box = DOMObjects.getHTML('chatBox');
             TrophyIM.activeChats['divs'][barejid] = {jid:fulljid, tab:chat_tab,
@@ -849,7 +858,8 @@ TrophyIM = {
      *  Handles actions when a chat tab is clicked
      */
     tabClick : function(tab_item) {
-        barejid = tab_item.lastChild.nodeValue;
+        barejid = tab_item.getElementsByClassName(
+        'trophyimchattabjid')[0].firstChild.nodeValue;
         if (TrophyIM.activeChats['divs'][barejid]) {
             TrophyIM.showChat(barejid);
         }
@@ -859,7 +869,8 @@ TrophyIM = {
      *  Closes chat tab
      */
     tabClose : function(tab_item) {
-        barejid = tab_item.parentNode.lastChild.nodeValue;
+        barejid = tab_item.parentNode.getElementsByClassName(
+        'trophyimchattabjid')[0].firstChild.nodeValue;
         if (TrophyIM.activeChats['current'] == barejid) {
             if (tab_item.parentNode.nextSibling) {
                 newjid = tab_item.parentNode.nextSibling.lastChild.nodeValue;
