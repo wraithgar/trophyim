@@ -5,6 +5,7 @@
     Copyright 2008 Michael Garvin
 */
 /*TODO dump
+Mouseover status messages in roster
 Fix whatever's preventing this from working in other browsers
 HTML in messages (xslt?)
 TrophyIM.script_loaded doesn't work in IE, find better alternative
@@ -30,7 +31,7 @@ Notifications of typing
 var TROPHY_BOSH_SERVICE = '/proxy/xmpp-httpbind';  //Change to suit
 var TROPHY_LOG_LINES = 200;
 var TROPHY_LOGLEVEL = 1; //0=debug, 1=info, 2=warn, 3=error, 4=fatal
-var TROPHYIM_VERSION = "0.2-dev";
+var TROPHYIM_VERSION = "0.2";
 
 /** File: trophyimclient.js
  *  A JavaScript front-end for strophe.js
