@@ -40,27 +40,37 @@ div.trophyimlogitem {
 div.trophyimrosteritem {
 	border: 1px black solid;
 }
+div.trophyimchattab_av { /*Available*/
+	color: #000000;
+}
+div.trophyimchattab_aw { /*Away*/
+	color: #a00000;
+}
+div.trophyimchattab_off { /*Offline*/
+	color: #808080;
+	font-style: italic;
+}
+div.trophyimrosteritem_av { /*Available*/
+	color: #000000;
+}
+div.trophyimrosteritem_aw { /*Away*/
+	color: #a00000;
+}
+div.trophyimrosteritem_off { /*Offline*/
+	color: #808080;
+	font-style: italic;
+}
 div.trophyimrosterjid {
     display: none;
 }
 div.trophyimrostername {
+    padding-left: 3px;
 }
 div.trophyimrostergroup {
 	border: 2px blue solid;
 }
 div.trophyimrosterlabel {
 	font-weight: bold;
-}
-div.trophyimrosteraway {
-	color: #a00000;
-}
-div.trophyimrosteravailable {
-	font-weight: bold;
-	color: #ffffff;
-}
-div.trophyimrosterunavailable {
-	color: #808080;
-	font-style: italic;
 }
 div#trophyimchattabs {
 	border: 1px green solid;

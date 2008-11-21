@@ -5,7 +5,6 @@
     Copyright 2008 Michael Garvin
 */
 /*TODO dump
-Active chats need to also know when presence changes
 HTML in messages (xslt?)
 TrophyIM.script_loaded doesn't work in IE, find better alternative
 Loglevel select on login instead of check box
@@ -16,11 +15,10 @@ vcard support http://xmpp.org/extensions/xep-0153.html
 Select presence status/message
 auto-subscribe vs prompted subscribe based on config option
 roster management
-make sure makeChat() et al can handle empty resources
+make sure makeChat() et al. can handle empty resources
     (offline chat capabilities)
-status indication in roster
 offline roster capablility
-figure out how we want to handle presence from our own jid
+figure out how we want to handle presence from our own jid (and transports)
 handling of this.changes dupes in setPresene is ugly
     maybe have renderRoster check for dupes instead
 layout overhaul
@@ -566,14 +564,18 @@ TrophyIM = {
                 }
                 message += Strophe.getText(body);
                 TrophyIM.makeChat(from); //Make sure we have a chat window
-                chat_box = TrophyIM.activeChats['divs'][barejid]['box']
-                chat_box = chat_box.getElementsByClassName('trophyimchatbox');
-                if(chat_box.length) {
-                    msg_div = document.createElement('div');
-                    msg_div.className = 'trophyimchatmessage';
-                    msg_div.appendChild(document.createTextNode(message));
-                    chat_box[0].appendChild(msg_div);
-                    chat_box[0].scrollTop = chat_box[0].scrollHeight;
+                chat_box = TrophyIM.activeChats['divs'][barejid][
+                'box'].getElementsByClassName('trophyimchatbox')[0];
+                msg_div = document.createElement('div');
+                msg_div.className = 'trophyimchatmessage';
+                msg_div.appendChild(document.createTextNode(message));
+                chat_box.appendChild(msg_div);
+                chat_box.scrollTop = chat_box.scrollHeight;
+                if (TrophyIM.activeChats['current'] != barejid) {
+                    TrophyIM.activeChats['divs'][barejid]['tab'].className = 
+                    "trophyimchattab trophyimchattab_a";
+                    TrophyIM.setTabPresence(from,
+                    TrophyIM.activeChats['divs'][barejid]['tab']);
                 }
             }
         }
@@ -604,6 +606,7 @@ TrophyIM = {
                 active_divs['tab'].className =
                 "trophyimchattab trophyimchattab_f";
             }
+            TrophyIM.setTabPresence(fulljid, chat_tab);
         }
         TrophyIM.activeChats['divs'][barejid]['resource'] =
         Strophe.getResourceFromJid(fulljid);
@@ -622,11 +625,40 @@ TrophyIM = {
             TrophyIM.activeChats['divs'][TrophyIM.activeChats['current']];
             active_divs['box'] = chat_area.removeChild(active_box);
             active_divs['tab'].className = "trophyimchattab trophyimchattab_b";
+            TrophyIM.setTabPresence(TrophyIM.activeChats['current'],
+            active_divs['tab']);
             TrophyIM.activeChats['divs'][barejid]['box'] =
             chat_area.appendChild(TrophyIM.activeChats['divs'][barejid]['box']);
             TrophyIM.activeChats['current'] = barejid;
             TrophyIM.activeChats['divs'][barejid]['tab'].className =
             "trophyimchattab trophyimchattab_f";
+            TrophyIM.setTabPresence(barejid,
+            TrophyIM.activeChats['divs'][barejid]['tab']);
+            TrophyIM.activeChats['divs'][barejid]['box'].getElementsByClassName(
+            'trophyimchatinput')[0].focus();
+        }
+    },
+    /** Function: setTabPresence
+     *
+     *  Applies appropriate class to tab div based on presence
+     *
+     *  Parameters:
+     *    (String) jid - jid to check presence for
+     *    (String) tab_div - tab div element to alter class on
+     */
+    setTabPresence : function(jid, tab_div) {
+        tab_div.className = tab_div.className.replace(" trophyimchattab_av", "");
+        tab_div.className = tab_div.className.replace(" trophyimchattab_aw", "");
+        tab_div.className = tab_div.className.replace(" trophyimchattab_off", "");
+        presence = TrophyIM.rosterObj.getPresence(jid);
+        if (presence) {
+            if (presence['show'] == "chat" || presence['show'] == "available") {
+                tab_div.className += " trophyimchattab_av";
+            } else {
+                tab_div.className += " trophyimchattab_aw";
+            }
+        } else {
+            tab_div.className += " trophyimchattab_off";
         }
     },
     /** Function: renderRoster
@@ -735,6 +767,14 @@ TrophyIM = {
                         'trophyimrostername')[0].appendChild(
                         document.createTextNode(new_name));
                         group_div.insertBefore(new_member, member_div);
+                        if (new_presence['show'] == "available" ||
+                        new_presence['show'] == "chat") {
+                            new_member.className =
+                            "trophyimrosteritem trophyimrosteritem_av";
+                        } else {
+                            new_member.className =
+                            "trophyimrosteritem trophyimrosteritem_aw";
+                        }
                     } else {
                         //show offline contacts
                     }
@@ -743,7 +783,14 @@ TrophyIM = {
             } else if (member_jid == changed_jid) {
                 member_presence = TrophyIM.rosterObj.getPresence(member_jid);
                 if(member_presence) {
-                    //show away status
+                    if (member_presence['show'] == "available" ||
+                    member_presence['show'] == "chat") {
+                        member_div.className =
+                        "trophyimrosteritem trophyimrosteritem_av";
+                    } else {
+                        member_div.className =
+                        "trophyimrosteritem trophyimrosteritem_aw";
+                    }
                 } else {
                     //show offline status
                     group_div.removeChild(member_div);
@@ -757,7 +804,6 @@ TrophyIM = {
                 if(new_presence) {
                     new_contact =
                     TrophyIM.rosterObj.getContact(changes[0]);
-                    //show away
                     new_member = DOMObjects.getHTML('rosterItem');
                     new_member.getElementsByClassName(
                     'trophyimrosterjid')[0].appendChild(
@@ -768,6 +814,14 @@ TrophyIM = {
                     'trophyimrostername')[0].appendChild(
                     document.createTextNode(new_name));
                     group_div.appendChild(new_member);
+                    if (new_presence['show'] == "available" ||
+                    new_presence['show'] == "chat") {
+                        new_member.className =
+                        "trophyimrosteritem trophyimrosteritem_av";
+                    } else {
+                        new_member.className =
+                        "trophyimrosteritem trophyimrosteritem_aw";
+                    }
                 } else {
                     //show offline
                 }
@@ -810,8 +864,8 @@ TrophyIM = {
             if (tab_item.parentNode.nextSibling) {
                 newjid = tab_item.parentNode.nextSibling.lastChild.nodeValue;
                 TrophyIM.showChat(newjid);
-            } else if (tab_item.parentNode.prevSibling) {
-                newjid = tab_item.parentNode.prevSibling.lastChild.nodeValue;
+            } else if (tab_item.parentNode.previousSibling) {
+                newjid = tab_item.parentNode.previousSibling.lastChild.nodeValue;
                 TrophyIM.showChat(newjid);
             } else { //no other active chat
                 chat_area.removeChild(document.getElementsByClassName('trophyimchatbox')[0].parentNode);
@@ -849,6 +903,7 @@ TrophyIM = {
             chat_box.scrollTop = chat_box.scrollHeight;
         }
         message_input.value = '';
+        message_input.focus();
     }
 };
 
@@ -924,11 +979,11 @@ function TrophyIMRoster() {
      */
     this.setPresence = function(fulljid, priority, show, status) {
         resource = Strophe.getResourceFromJid(fulljid);
-        jid = Strophe.getBareJidFromJid(fulljid);
-        jid_lower = jid.toLowerCase();
+        barejid = Strophe.getBareJidFromJid(fulljid);
+        jid_lower = barejid.toLowerCase();
         if(show != 'unavailable') {
             if (!this.roster[jid_lower]) {
-                this.addContact(jid, 'not-in-roster');
+                this.addContact(barejid, 'not-in-roster');
             }
             presence = {
                 resource:resource, priority:priority, show:show, status:status
@@ -952,6 +1007,10 @@ function TrophyIMRoster() {
             this.changes[this.changes.length] = jid_lower;
         }
         this.changes.sort();
+        change_div = TrophyIM.activeChats['divs'][jid_lower];
+        if (change_div) {
+            TrophyIM.setTabPresence(jid_lower, change_div['tab']);
+        }
     }
     /** Function: getPresence
      *
