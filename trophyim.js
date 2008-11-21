@@ -522,7 +522,7 @@ TrophyIM = {
         }
         if (msg.getAttribute('type') == 'set') {
             TrophyIM.connection.send($iq({type: 'reply', id:
-            msg.getAttribute('id'), to: msg.getAttribute('from')}));
+            msg.getAttribute('id'), to: msg.getAttribute('from')}).tree());
         }
         return true;
     },
