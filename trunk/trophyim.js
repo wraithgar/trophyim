@@ -7,7 +7,6 @@
 /*TODO dump / very loose roadmap
 --0.3
 Mouseover status messages in roster
-TrophyIM.script_loaded doesn't work in IE, find better alternative
 Tie trophyim_bosh_[jsr]id into one cookie
 JSON encoding and offloading of roster/presence
 Strophe.attach functionality
@@ -190,7 +189,6 @@ DOMObjects = {
         newscript = document.createElement('script');
         newscript.setAttribute('src', script);
         newscript.setAttribute('type', 'text/javascript');
-        newscript.onload = function() { TrophyIM.jsLoaded(script); }
         return newscript;
     }
 };
@@ -206,14 +204,6 @@ TrophyIM = {
      *  This object stores the currently active chats.
      */
     activeChats : {current: null, divs: {}},
-    /** Function: jsLoaded
-     *
-     *  Called when a script that TrophyIM adds to the page is done loading,
-     *  allowing TrophyIM to track what scripts have loaded.
-     */
-    jsLoaded : function(script) {
-        TrophyIM.scripts_loaded[TrophyIM.scripts_loaded.length] = script;
-    },
     /** Function: setCookie
      *
      *  Sets cookie name/value pair.  Date and path are auto-selected.
@@ -271,14 +261,11 @@ TrophyIM = {
         TrophyIM.cookies = TrophyIM.getCookies();
         client_div = document.getElementById('trophyimclient');
         if (client_div) {
-            TrophyIM.scripts_loaded = new Array();
             TrophyIM.client_div = client_div;
             //load .css
             document.getElementsByTagName('head')[0].appendChild(
             DOMObjects.getHTML('cssLink'));
             //Load other .js scripts needed
-            document.getElementsByTagName('head')[0].appendChild(
-            DOMObjects.getScript('json2.js'));
             document.getElementsByTagName('head')[0].appendChild(
             DOMObjects.getScript('strophejs/strophe.js'));
             document.getElementsByTagName('head')[0].appendChild(
@@ -287,7 +274,9 @@ TrophyIM = {
             DOMObjects.getScript('strophejs/sha1.js'));
             document.getElementsByTagName('head')[0].appendChild(
             DOMObjects.getScript('strophejs/b64.js'));
-            //Wait half a second to give scripts time to load
+            document.getElementsByTagName('head')[0].appendChild(
+            DOMObjects.getScript('json2.js')); //Keep this script last
+            //Wait a second to give scripts time to load
             setTimeout("TrophyIM.showLogin()", 500);
         } else {
             alert("Cannot load TrophyIM client.\nClient div not found.");
@@ -300,9 +289,7 @@ TrophyIM = {
      *   preserving the logging div if it exists.
      */
     showLogin : function() {
-        //if(TrophyIM.scripts_loaded.length == 5) {
-        if(TrophyIM.scripts_loaded.length == 5 || true ||
-        document.getElementsByTagName('script').length == 6) {
+        if (JSON) { //JSON is the last script to load
             if (false && TrophyIM.cookies['trophy_im_jid'] &&
             TrophyIM.cookies['trophy_im_sid'] &&
             TrophyIM.cookies['trophy_im_rid']) {
@@ -331,8 +318,6 @@ TrophyIM = {
                 }
             }
         } else {
-            //Call ourselves again in half a second to see if scripts are done
-            //loading
             setTimeout("TrophyIM.showLogin()", 500);
         }
     },
@@ -856,7 +841,6 @@ TrophyIM = {
      *  Handles actions when a roster item is clicked
      */
     rosterClick : function(roster_item) {
-        alert("roster click");
         barejid = getElementsByClassName('trophyimrosterjid', null,
         roster_item)[0].firstChild.nodeValue;
         presence = TrophyIM.rosterObj.getPresence(barejid);
