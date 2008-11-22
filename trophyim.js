@@ -4,34 +4,38 @@
 
     Copyright 2008 Michael Garvin
 */
-/*TODO dump
-Mouseover status messages in roster
+/*TODO dump / very loose roadmap
+--0.3
 Fix whatever's preventing this from working in other browsers
-HTML in messages (xslt?)
+Mouseover status messages in roster
 TrophyIM.script_loaded doesn't work in IE, find better alternative
-Loglevel select on login instead of check box
-Optional user-specified resource
 Tie trophyim_bosh_[jsr]id into one cookie
 JSON encoding and offloading of roster/presence
-vcard support http://xmpp.org/extensions/xep-0153.html
+Strophe.attach functionality
+--0.4
+HTML in messages (xslt?)
 Select presence status/message
-auto-subscribe vs prompted subscribe based on config option
-roster management
-make sure makeChat() et al. can handle empty resources
-    (offline chat capabilities)
-offline roster capablility
-figure out how we want to handle presence from our own jid (and transports)
-handling of this.changes dupes in setPresene is ugly
-    maybe have renderRoster check for dupes instead
-layout overhaul
-chat tab div needs to stop wrapping
+Optional user-specified resource
+Loglevel select on login instead of check box
+vcard support http://xmpp.org/extensions/xep-0153.html
 Notifications of closed chats
 Notifications of typing
+--0.5
+roster management
+figure out how we want to handle presence from our own jid (and transports)
+roster sorting by presence / offline roster capablility
+handling of this.changes dupes in setPresence is ugly
+    maybe have renderRoster check for dupes instead
+auto-subscribe vs prompted subscribe based on config option
+make sure makeChat() et al. can handle empty resources
+    (offline chat capabilities)
+--1.0 (or whenever someone submits better .css)
+layout overhaul
 */
 var TROPHY_BOSH_SERVICE = '/proxy/xmpp-httpbind';  //Change to suit
 var TROPHY_LOG_LINES = 200;
 var TROPHY_LOGLEVEL = 1; //0=debug, 1=info, 2=warn, 3=error, 4=fatal
-var TROPHYIM_VERSION = "0.2";
+var TROPHYIM_VERSION = "0.3-dev";
 
 /** File: trophyimclient.js
  *  A JavaScript front-end for strophe.js
