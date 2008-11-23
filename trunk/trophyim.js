@@ -7,7 +7,6 @@
 /*TODO dump / very loose roadmap
 --0.3
 Mouseover status messages in roster
-Tie trophyim_bosh_[jsr]id into one cookie
 JSON encoding and offloading of roster/presence
 Strophe.attach functionality
 --0.4
@@ -29,9 +28,9 @@ make sure makeChat() et al. can handle empty resources
 layout overhaul
 code cleanup (like checking for excessive function lengths)
 */
-var TROPHY_BOSH_SERVICE = '/proxy/xmpp-httpbind';  //Change to suit
-var TROPHY_LOG_LINES = 200;
-var TROPHY_LOGLEVEL = 1; //0=debug, 1=info, 2=warn, 3=error, 4=fatal
+var TROPHYIM_BOSH_SERVICE = '/proxy/xmpp-httpbind';  //Change to suit
+var TROPHYIM_LOG_LINES = 200;
+var TROPHYIM_LOGLEVEL = 1; //0=debug, 1=info, 2=warn, 3=error, 4=fatal
 var TROPHYIM_VERSION = "0.3-dev";
 
 /** File: trophyimclient.js
@@ -291,24 +290,22 @@ TrophyIM = {
     showLogin : function() {
         //JSON is the last script to load, so we wait on it
         if (typeof(JSON) != undefined) {
-            if (false && TrophyIM.cookies['trophy_im_jid'] &&
-            TrophyIM.cookies['trophy_im_sid'] &&
-            TrophyIM.cookies['trophy_im_rid']) {
+            if (false && TrophyIM.cookies['trophyim_bosh_xid']) {
+                var xids = TrophyIM.cookies['trophyim_bosh_xid'].split("|");
                 TrophyIM.log(Strophe.LogLevel.INFO, 'Attempting Strophe attach.');
-                TrophyIM.connection = new Strophe.Connection(TROPHY_BOSH_SERVICE);
+                TrophyIM.connection = new Strophe.Connection(TROPHYIM_BOSH_SERVICE);
                 TrophyIM.connection.rawInput = TrophyIM.rawInput;
                 TrophyIM.connection.rawOutput = TrophyIM.rawOutput;
                 Strophe.log = TrophyIM.log;
-                TrophyIM.connection.attach(TrophyIM.cookies['trophy_im_jid'],
-                TrophyIM.cookies['trophy_im_sid'],
-                TrophyIM.cookies['trophy_im_rid'], TrophyIM.onConnect);
+                TrophyIM.connection.attach(xids[0], xids[1], xids[2],
+                TrophyIM.onConnect);
             } else {
                 var logging_div = TrophyIM.clearClient();
                 TrophyIM.client_div.appendChild(DOMObjects.getHTML('loginPage'));
                 if(logging_div) {
                     TrophyIM.client_div.appendChild(logging_div);
                     TrophyIM.logging_div =
-                    document.getElementById('trophyimloglevel');
+                    document.getElementById('trophyimlog');
                 }
                 if (TrophyIM.cookies['trophyimjid']) {
                     document.getElementById('trophyimjid').value =
@@ -329,8 +326,8 @@ TrophyIM = {
      *  Parameter: (String) msg - the message to log
      */
     log : function(level, msg) {
-        if (TrophyIM.logging_div && level >= TROPHY_LOGLEVEL) {
-            while(TrophyIM.logging_div.childNodes.length > TROPHY_LOG_LINES) {
+        if (TrophyIM.logging_div && level >= TROPHYIM_LOGLEVEL) {
+            while(TrophyIM.logging_div.childNodes.length > TROPHYIM_LOG_LINES) {
                 TrophyIM.logging_div.removeChild(
                 TrophyIM.logging_div.firstChild);
             }
@@ -377,7 +374,7 @@ TrophyIM = {
                 TrophyIM.logging_div = null;
             }
         }
-        TrophyIM.connection = new Strophe.Connection(TROPHY_BOSH_SERVICE);
+        TrophyIM.connection = new Strophe.Connection(TROPHYIM_BOSH_SERVICE);
         TrophyIM.connection.rawInput = TrophyIM.rawInput;
         TrophyIM.connection.rawOutput = TrophyIM.rawOutput;
         Strophe.log = TrophyIM.log;
@@ -396,9 +393,7 @@ TrophyIM = {
 
     },
     logout : function() {
-        TrophyIM.delCookie('trophyim_bosh_jid');
-        TrophyIM.delCookie('trophyim_bosh_sid');
-        TrophyIM.delCookie('trophyim_bosh_rid');
+        TrophyIM.delCookie('trophyim_bosh_xid');
         for (var chat in TrophyIM.activeChats['divs']) {
             delete TrophyIM.activeChats['divs'][chat];
         }
@@ -411,17 +406,13 @@ TrophyIM = {
             TrophyIM.log(Strophe.LogLevel.INFO, 'Strophe is connecting.');
         } else if (status == Strophe.Status.CONNFAIL) {
             TrophyIM.log(Strophe.LogLevel.INFO, 'Strophe failed to connect.');
-            TrophyIM.delCookie('trophyim_bosh_jid');
-            TrophyIM.delCookie('trophyim_bosh_sid');
-            TrophyIM.delCookie('trophyim_bosh_rid');
+            TrophyIM.delCookie('trophyim_bosh_xid');
             TrophyIM.showLogin();
         } else if (status == Strophe.Status.DISCONNECTING) {
             TrophyIM.log(Strophe.LogLevel.INFO, 'Strophe is disconnecting.');
         } else if (status == Strophe.Status.DISCONNECTED) {
             TrophyIM.log(Strophe.LogLevel.INFO, 'Strophe is disconnected.');
-            TrophyIM.delCookie('trophyim_bosh_jid');
-            TrophyIM.delCookie('trophyim_bosh_sid');
-            TrophyIM.delCookie('trophyim_bosh_rid');
+            TrophyIM.delCookie('trophyim_bosh_xid');
             TrophyIM.showLogin();
         } else if (status == Strophe.Status.CONNECTED) {
             TrophyIM.log(Strophe.LogLevel.INFO, 'Strophe is connected.');
@@ -435,9 +426,8 @@ TrophyIM = {
      *  registers all the handlers for Strophe to call in the client.
      */
     showClient : function() {
-        //TrophyIM.setCookie('trophyim_bosh_jid', BOSH_JID);
-        //TrophyIM.setCookie('trophyim_bosh_sid', BOSH_SID);
-        //TrophyIM.setCookie('trophyim_bosh_rid', BOSH_RID);
+        //TrophyIM.setCookie('trophyim_bosh_xid', TrophyIM.connection.jid + "|" +
+        //TrophyIM.connection.sid + "|" +  TrophyIM.connection.rid);
         var logging_div = TrophyIM.clearClient();
         TrophyIM.client_div.appendChild(DOMObjects.getHTML('rosterDiv'));
         TrophyIM.client_div.appendChild(DOMObjects.getHTML('chatArea'));
