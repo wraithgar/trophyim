@@ -22,13 +22,12 @@ Notifications of typing
 roster management
 figure out how we want to handle presence from our own jid (and transports)
 roster sorting by presence / offline roster capablility
-handling of this.changes dupes in setPresence is ugly
-    maybe have renderRoster check for dupes instead
 auto-subscribe vs prompted subscribe based on config option
 make sure makeChat() et al. can handle empty resources
     (offline chat capabilities)
 --1.0 (or whenever someone submits better .css)
 layout overhaul
+code cleanup (like checking for excessive function lengths)
 */
 var TROPHY_BOSH_SERVICE = '/proxy/xmpp-httpbind';  //Change to suit
 var TROPHY_LOG_LINES = 200;
@@ -48,7 +47,7 @@ var TROPHYIM_VERSION = "0.3-dev";
  *  auto-included by the client.
  */
 
-/** Class: HTMLSnippets
+/** Object: HTMLSnippets
  *
  *  This is the repository for all the html snippets that TrophyIM uses
  *
@@ -91,7 +90,7 @@ HTMLSnippets = {
         </div>"
 };
 
-/** Class: DOMObjects
+/** Object: DOMObjects
  *  This class contains builders for all the DOM objects needed by TrophyIM
  */
 DOMObjects = {
@@ -103,7 +102,7 @@ DOMObjects = {
      *    (String) xml - the xml string to parse
      */
     xmlParse : function(xmlString) {
-        xmlObj = this.xmlRender(xmlString);
+        var xmlObj = this.xmlRender(xmlString);
         if(xmlObj) {
             try { //Firefox, Gecko, etc
                 if (this.processor == undefined) {
@@ -116,17 +115,18 @@ DOMObjects = {
                     select="@*|node()"/></xsl:copy></xsl:template>\
                     </xsl:stylesheet>'));
                 }
-                htmlObj =
+                var htmlObj =
                 this.processor.transformToDocument(xmlObj).documentElement;
-                if (htmlObj.tagName.toLowerCase() == 'html') { //Safari quirk
+                //Safari has a quirk where it wraps dom elements in <html><body>
+                if (htmlObj.tagName.toLowerCase() == 'html') {
                     htmlObj = htmlObj.firstChild.firstChild;
                 }
                 return document.importNode(htmlObj, true);
             } catch(e) {
                 try { //IE is so very very special
-                    htmlObj = document.importNode(xmlObj.documentElement, true);
+                    var htmlObj = document.importNode(xmlObj.documentElement, true);
                     if (htmlObj.tagName.toLowerCase() == "div") {
-                        div_wrapper = document.createElement('div');
+                        var div_wrapper = document.createElement('div');
                         div_wrapper.appendChild(htmlObj);
                         if(div_wrapper.innerHTML) {
                             div_wrapper.innerHTML = div_wrapper.innerHTML;
@@ -149,7 +149,7 @@ DOMObjects = {
      */
     xmlRender : function(xmlString) {
         try {//IE
-            renderObj = new ActiveXObject("Microsoft.XMLDOM");
+            var renderObj = new ActiveXObject("Microsoft.XMLDOM");
             renderObj.async="false";
             if(xmlString) {
                 renderObj.loadXML(xmlString);
@@ -159,7 +159,7 @@ DOMObjects = {
                 if (this.parser == undefined) {
                     this.parser = new DOMParser();
                 }
-                renderObj = this.parser.parseFromString(xmlString,
+                var renderObj = this.parser.parseFromString(xmlString,
                 "application/xml");
             } catch(e) {
                 alert("TrophyIM Error: Cannot create new html for page");
@@ -186,7 +186,7 @@ DOMObjects = {
      *    element
      */
     getScript : function(script) {
-        newscript = document.createElement('script');
+        var newscript = document.createElement('script');
         newscript.setAttribute('src', script);
         newscript.setAttribute('type', 'text/javascript');
         return newscript;
@@ -213,10 +213,9 @@ TrophyIM = {
      *    (String) value - the value of the cookie variable
      */
     setCookie : function(name, value) {
-        expire = new Date();
+        var expire = new Date();
         expire.setDate(expire.getDate() + 365);
-        c = name + "=" + value + "; expires=" + expire.toGMTString();
-        document.cookie = c;
+        document.cookie = name + "=" + value + "; expires=" + expire.toGMTString();
     },
     /** Function: delCookie
      *
@@ -226,31 +225,32 @@ TrophyIM = {
      *    (String) name) - the name of the cookie to delete
      */
     delCookie : function(name) {
-        expire = new Date();
+        var expire = new Date();
         expire.setDate(expire.getDate() - 365);
-        c = name + "= ; expires=" + expire.toGMTString();
-        document.cookie = c;
+        document.cookie = name + "= ; expires=" + expire.toGMTString();
     },
     /** Function: getCookies
      *
-     *  Retrieves all cookies into an indexed object.  Inteneded to be called
-     *  once, at which time the app refers to the returned object instead of
-     *  re-parsing the cookie string every time.
-     *  Also each cookie is re-applied so as to refresh the expiry date
+     *  Retrieves all trophyim cookies into an indexed object.  Inteneded to be
+     *  called once, at which time the app refers to the returned object instead
+     *  of re-parsing the cookie string every time.
+     *
+     *  Each cookie is also re-applied so as to refresh the expiry date.
      */
     getCookies : function() {
-        cookies = {};
-        c_split = document.cookie.split(';');
-        for (i = 0; i < c_split.length; i++) {
-            cookie = c_split[i];
-            while (cookie.charAt(0)==' ') cookie = cookie.substring(1,cookie.length);
-            if (cookie.substr(0, 8) == "trophyim") {
-                nvpair = cookie.split("=", 2);
-                cookies[nvpair[0]] = nvpair[1];
+        var cObj = {};
+        var cookies = document.cookie.split(';');
+        for (var c in cookies) {
+            while (cookies[c].charAt(0)==' ') { 
+                cookies[c] = cookies[c].substring(1,cookies[c].length);
+            }
+            if (cookies[c].substr(0, 8) == "trophyim") {
+                var nvpair = cookies[c].split("=", 2);
+                cObj[nvpair[0]] = nvpair[1];
                 TrophyIM.setCookie(nvpair[0], nvpair[1]);
             }
         }
-        return cookies;
+        return cObj;
     },
     /** Function: load
      *
@@ -259,7 +259,7 @@ TrophyIM = {
      */
     load : function() {
         TrophyIM.cookies = TrophyIM.getCookies();
-        client_div = document.getElementById('trophyimclient');
+        var client_div = document.getElementById('trophyimclient');
         if (client_div) {
             TrophyIM.client_div = client_div;
             //load .css
@@ -289,7 +289,8 @@ TrophyIM = {
      *   preserving the logging div if it exists.
      */
     showLogin : function() {
-        if (JSON) { //JSON is the last script to load
+        //JSON is the last script to load, so we wait on it
+        if (typeof(JSON) != undefined) {
             if (false && TrophyIM.cookies['trophy_im_jid'] &&
             TrophyIM.cookies['trophy_im_sid'] &&
             TrophyIM.cookies['trophy_im_rid']) {
@@ -302,7 +303,7 @@ TrophyIM = {
                 TrophyIM.cookies['trophy_im_sid'],
                 TrophyIM.cookies['trophy_im_rid'], TrophyIM.onConnect);
             } else {
-                logging_div = TrophyIM.clearClient();
+                var logging_div = TrophyIM.clearClient();
                 TrophyIM.client_div.appendChild(DOMObjects.getHTML('loginPage'));
                 if(logging_div) {
                     TrophyIM.client_div.appendChild(logging_div);
@@ -333,7 +334,7 @@ TrophyIM = {
                 TrophyIM.logging_div.removeChild(
                 TrophyIM.logging_div.firstChild);
             }
-            msg_div = document.createElement('div');
+            var msg_div = document.createElement('div');
             msg_div.className = 'trophyimlogitem';
             msg_div.appendChild(document.createTextNode(msg));
             TrophyIM.logging_div.appendChild(msg_div);
@@ -380,11 +381,11 @@ TrophyIM = {
         TrophyIM.connection.rawInput = TrophyIM.rawInput;
         TrophyIM.connection.rawOutput = TrophyIM.rawOutput;
         Strophe.log = TrophyIM.log;
-        barejid  = document.getElementById('trophyimjid').value
-        fulljid = barejid + '/TrophyIM';
+        var barejid  = document.getElementById('trophyimjid').value
+        var fulljid = barejid + '/TrophyIM';
         TrophyIM.setCookie('trophyimjid', barejid);
-        password = document.getElementById('trophyimpass').value;
-        button = document.getElementById('trophyimconnect');
+        var password = document.getElementById('trophyimpass').value;
+        var button = document.getElementById('trophyimconnect');
         if (button.value == 'connect') {
             button.value = 'disconnect';
             TrophyIM.connection.connect(fulljid, password, TrophyIM.onConnect);
@@ -398,7 +399,7 @@ TrophyIM = {
         TrophyIM.delCookie('trophyim_bosh_jid');
         TrophyIM.delCookie('trophyim_bosh_sid');
         TrophyIM.delCookie('trophyim_bosh_rid');
-        for (chat in TrophyIM.activeChats['divs']) {
+        for (var chat in TrophyIM.activeChats['divs']) {
             delete TrophyIM.activeChats['divs'][chat];
         }
         TrophyIM.activeChats = {current: null, divs: {}},
@@ -437,7 +438,7 @@ TrophyIM = {
         //TrophyIM.setCookie('trophyim_bosh_jid', BOSH_JID);
         //TrophyIM.setCookie('trophyim_bosh_sid', BOSH_SID);
         //TrophyIM.setCookie('trophyim_bosh_rid', BOSH_RID);
-        logging_div = TrophyIM.clearClient();
+        var logging_div = TrophyIM.clearClient();
         TrophyIM.client_div.appendChild(DOMObjects.getHTML('rosterDiv'));
         TrophyIM.client_div.appendChild(DOMObjects.getHTML('chatArea'));
         TrophyIM.client_div.appendChild(DOMObjects.getHTML('statusDiv'));
@@ -467,10 +468,10 @@ TrophyIM = {
      */
     clearClient : function() {
         if(TrophyIM.logging_div) {
-            logging_div = TrophyIM.client_div.removeChild(
+            var logging_div = TrophyIM.client_div.removeChild(
             document.getElementById('trophyimlog'));
         } else {
-            logging_div = null;
+            var logging_div = null;
         }
         while(TrophyIM.client_div.childNodes.length > 0) {
             TrophyIM.client_div.removeChild(TrophyIM.client_div.firstChild);
@@ -479,16 +480,15 @@ TrophyIM = {
     },
     /** Function: onVersion
      *
-     *  Version iq handler
+     *  jabber:iq:version query handler
      */
     onVersion : function(msg) {
         TrophyIM.log(Strophe.LogLevel.DEBUG, "Version handler");
-        type = msg.getAttribute('type');
-        if (type == 'get') {
-            from = msg.getAttribute('from');
-            to = msg.getAttribute('to');
-            id = msg.getAttribute('id');
-            reply = $iq({type: 'result', to: from, from: to, id: id}).c('query',
+        if (msg.getAttribute('type') == 'get') {
+            var from = msg.getAttribute('from');
+            var to = msg.getAttribute('to');
+            var id = msg.getAttribute('id');
+            var reply = $iq({type: 'result', to: from, from: to, id: id}).c('query',
             {name: "TrophyIM", version: TROPHYIM_VERSION, os:
             "Javascript-capable browser"});
             TrophyIM.connection.send(reply.tree());
@@ -501,20 +501,17 @@ TrophyIM = {
      */
     onRoster : function(msg) {
         TrophyIM.log(Strophe.LogLevel.DEBUG, "Roster handler");
-        xmlroster = msg.firstChild;
-        roster_items = xmlroster.getElementsByTagName('item');
-        for (i = 0; i < roster_items.length; i++) {
-            roster_item = roster_items[i];
-            jid = roster_item.getAttribute('jid'); //REQUIRED
-            nickname = roster_item.getAttribute('name'); //MAY
-            subscription = roster_item.getAttribute('subscription');
-            groups = roster_item.getElementsByTagName('group');
-            group_array = new Array();
-            for (g = 0; g < groups.length; g++) {
+        var roster_items = msg.firstChild.getElementsByTagName('item');
+        for (var i = 0; i < roster_items.length; i++) {
+            var groups = roster_items[i].getElementsByTagName('group');
+            var group_array = new Array();
+            for (var g = 0; g < groups.length; g++) {
                 group_array[group_array.length] =
                 groups[g].firstChild.nodeValue;
             }
-            TrophyIM.rosterObj.addContact(jid, subscription, nickname, group_array);
+            TrophyIM.rosterObj.addContact(roster_items[i].getAttribute('jid'),
+            roster_items[i].getAttribute('subscription'),
+            roster_items[i].getAttribute('name'), group_array);
         }
         if (msg.getAttribute('type') == 'set') {
             TrophyIM.connection.send($iq({type: 'reply', id:
@@ -528,18 +525,16 @@ TrophyIM = {
      */
     onPresence : function(msg) {
         TrophyIM.log(Strophe.LogLevel.DEBUG, "Presence handler");
-        type = msg.getAttribute('type') ? msg.getAttribute('type') :
+        var type = msg.getAttribute('type') ? msg.getAttribute('type') :
         'available';
-        show = msg.getElementsByTagName('show').length ? Strophe.getText(
+        var show = msg.getElementsByTagName('show').length ? Strophe.getText(
         msg.getElementsByTagName('show')[0]) : type;
-        from = msg.getAttribute('from');
-        status = msg.getElementsByTagName('status').length ? Strophe.getText(
+        var status = msg.getElementsByTagName('status').length ? Strophe.getText(
         msg.getElementsByTagName('status')[0]) : '';
-        priority = msg.getElementsByTagName('priority').length ? parseInt(
+        var priority = msg.getElementsByTagName('priority').length ? parseInt(
         Strophe.getText(msg.getElementsByTagName('priority')[0])) : 0;
-        TrophyIM.rosterObj.setPresence(from, priority, show, status);
-        TrophyIM.log(Strophe.LogLevel.INFO, "Got presence " + from + " " +
-        priority + " " + show + " " + status);
+        TrophyIM.rosterObj.setPresence(msg.getAttribute('from'), priority,
+        show, status);
         return true;
     },
     /** Function: onMessage
@@ -548,35 +543,33 @@ TrophyIM = {
      */
     onMessage : function(msg) {
         TrophyIM.log(Strophe.LogLevel.DEBUG, "Message handler");
-        to = msg.getAttribute('to');
-        from = msg.getAttribute('from');
-        type = msg.getAttribute('type');
-        elems = msg.getElementsByTagName('body');
+        var from = msg.getAttribute('from');
+        var type = msg.getAttribute('type');
+        var elems = msg.getElementsByTagName('body');
 
         if ((type == 'chat' || type == 'normal') && elems.length > 0) {
-            body = elems[0]
-            barejid = Strophe.getBareJidFromJid(from).toLowerCase();
-            contact = TrophyIM.rosterObj.roster[barejid]['contact'];
+            barejid = Strophe.getBareJidFromJid(from);
+            contact = TrophyIM.rosterObj.roster[barejid.toLowerCase()]['contact'];
             if (contact) { //Do we know you?
                 if (contact['name'] != null) {
                     message  = contact['name'] + " (" + barejid + "): ";
                 } else {
                     message = contact['jid'] + ": ";
                 }
-                message += Strophe.getText(body);
+                message += Strophe.getText(elems[0]);
                 TrophyIM.makeChat(from); //Make sure we have a chat window
                 chat_box = getElementsByClassName('trophyimchatbox', 'div',
-                TrophyIM.activeChats['divs'][barejid]['box'])[0];
+                TrophyIM.activeChats['divs'][barejid.toLowerCase()]['box'])[0];
                 msg_div = document.createElement('div');
                 msg_div.className = 'trophyimchatmessage';
                 msg_div.appendChild(document.createTextNode(message));
                 chat_box.appendChild(msg_div);
                 chat_box.scrollTop = chat_box.scrollHeight;
-                if (TrophyIM.activeChats['current'] != barejid) {
-                    TrophyIM.activeChats['divs'][barejid]['tab'].className =
-                    "trophyimchattab trophyimchattab_a";
+                if (TrophyIM.activeChats['current'] != barejid.toLowerCase()) {
+                    TrophyIM.activeChats['divs'][barejid.toLowerCase()][
+                    'tab'].className = "trophyimchattab trophyimchattab_a";
                     TrophyIM.setTabPresence(from,
-                    TrophyIM.activeChats['divs'][barejid]['tab']);
+                    TrophyIM.activeChats['divs'][barejid.toLowerCase()]['tab']);
                 }
             }
         }
@@ -588,28 +581,26 @@ TrophyIM = {
      *  given resource
      */
     makeChat : function(fulljid) {
-        barejid = Strophe.getBareJidFromJid(fulljid);
+        var barejid = Strophe.getBareJidFromJid(fulljid);
         if (!TrophyIM.activeChats['divs'][barejid]) {
-            chat_tabs = document.getElementById('trophyimchattabs');
-            chat_tab = DOMObjects.getHTML('chatTab');
+            var chat_tabs = document.getElementById('trophyimchattabs');
+            var chat_tab = DOMObjects.getHTML('chatTab');
+            var chat_box = DOMObjects.getHTML('chatBox');
+            var contact = TrophyIM.rosterObj.getContact(barejid);
+            var tab_name = (contact['name'] != null) ? contact['name'] : barejid;
             chat_tab.className = "trophyimchattab trophyimchattab_a";
             getElementsByClassName('trophyimchattabjid', 'div',
             chat_tab)[0].appendChild(document.createTextNode(barejid));
-            contact = TrophyIM.rosterObj.getContact(barejid);
-            tab_name = (contact['name'] != null) ? contact['name'] : barejid;
             getElementsByClassName('trophyimchattabname', 'div',
             chat_tab)[0].appendChild(document.createTextNode(tab_name));
             chat_tab = chat_tabs.appendChild(chat_tab);
-            chat_box = DOMObjects.getHTML('chatBox');
             TrophyIM.activeChats['divs'][barejid] = {jid:fulljid, tab:chat_tab,
             box:chat_box};
             if (!TrophyIM.activeChats['current']) { //We're the first
                 TrophyIM.activeChats['current'] = barejid;
-                active_divs = TrophyIM.activeChats['divs'][barejid];
-                chat_area = document.getElementById('trophyimchat');
-                chat_area.appendChild(chat_box);
-                active_divs['box'] = chat_box;
-                active_divs['tab'].className =
+                document.getElementById('trophyimchat').appendChild(chat_box);
+                TrophyIM.activeChats['divs'][barejid]['box'] = chat_box;
+                TrophyIM.activeChats['divs'][barejid]['tab'].className =
                 "trophyimchattab trophyimchattab_f";
             }
             TrophyIM.setTabPresence(fulljid, chat_tab);
@@ -624,12 +615,12 @@ TrophyIM = {
     showChat : function(barejid) {
         if (TrophyIM.activeChats['current'] &&
         TrophyIM.activeChats['current'] != barejid) {
-            chat_area = document.getElementById('trophyimchat');
-            active_box = getElementsByClassName('trophyimchatbox', 'div',
-            chat_area)[0].parentNode;
-            active_divs =
+            var chat_area = document.getElementById('trophyimchat');
+            var active_divs =
             TrophyIM.activeChats['divs'][TrophyIM.activeChats['current']];
-            active_divs['box'] = chat_area.removeChild(active_box);
+            active_divs['box'] =
+            chat_area.removeChild(getElementsByClassName('trophyimchatbox',
+            'div', chat_area)[0].parentNode);
             active_divs['tab'].className = "trophyimchattab trophyimchattab_b";
             TrophyIM.setTabPresence(TrophyIM.activeChats['current'],
             active_divs['tab']);
@@ -653,10 +644,10 @@ TrophyIM = {
      *    (String) tab_div - tab div element to alter class on
      */
     setTabPresence : function(jid, tab_div) {
+        var presence = TrophyIM.rosterObj.getPresence(jid);
         tab_div.className = tab_div.className.replace(" trophyimchattab_av", "");
         tab_div.className = tab_div.className.replace(" trophyimchattab_aw", "");
         tab_div.className = tab_div.className.replace(" trophyimchattab_off", "");
-        presence = TrophyIM.rosterObj.getPresence(jid);
         if (presence) {
             if (presence['show'] == "chat" || presence['show'] == "available") {
                 tab_div.className += " trophyimchattab_av";
@@ -674,32 +665,32 @@ TrophyIM = {
      */
     renderRoster : function() {
         if (TrophyIM.rosterObj.changes.length > 0) {
-            roster_div = document.getElementById('trophyimroster');
+            var roster_div = document.getElementById('trophyimroster');
             if(roster_div) {
-                groups = new Array();
+                var groups = new Array();
                 for (var group in TrophyIM.rosterObj.groups) {
                     groups[groups.length] = group;
                 }
                 groups.sort();
-                group_divs = getElementsByClassName('trophyimrostergroup',
+                var group_divs = getElementsByClassName('trophyimrostergroup',
                 null, roster_div);
-                for (g = 0; g < group_divs.length; g++) {
-                    group_div = group_divs[g];
-                    group_name = getElementsByClassName('trophyimrosterlabel',
-                    null, group_div)[0].firstChild.nodeValue;
+                for (var g = 0; g < group_divs.length; g++) {
+                    var group_name = getElementsByClassName('trophyimrosterlabel',
+                    null, group_divs[g])[0].firstChild.nodeValue;
                     if (group_name > groups[0]) {
-                        new_group = DOMObjects.getHTML('rosterGroup');
-                        label_div = getElementsByClassName(
+                        var new_group = DOMObjects.getHTML('rosterGroup');
+                        var label_div = getElementsByClassName(
                         'trophyimrosterlabel', null, new_group)[0];
                         label_div.appendChild(document.createTextNode(
                         groups[0]));
                         new_group.appendChild(label_div);
                         new_group = roster_div.insertBefore(new_group,
-                        group_div);
+                        group_divs[g]);
                         //Only update if we have changed jids in this group
-                        for (i in TrophyIM.rosterObj.changes) {
+                        for (var c = 0; c <  TrophyIM.rosterObj.changes.length;
+                        c++) {
                             if (TrophyIM.rosterObj.groups[groups[0]][
-                            TrophyIM.rosterObj.changes[i]]) {
+                            TrophyIM.rosterObj.changes[c]]) {
                                 TrophyIM.renderGroup(new_group, groups[0],
                                 TrophyIM.rosterObj.changes.slice());
                                 break;
@@ -709,27 +700,27 @@ TrophyIM = {
                         groups.shift();
                     }
                     //Only update if we have changed jids in this group
-                    for (i in TrophyIM.rosterObj.changes) {
+                    for (var c = 0; c < TrophyIM.rosterObj.changes.length; c++) {
                         if (TrophyIM.rosterObj.groups[group_name][
-                        TrophyIM.rosterObj.changes[i]]) {
-                            TrophyIM.renderGroup(group_div, group_name,
+                        TrophyIM.rosterObj.changes[c]]) {
+                            TrophyIM.renderGroup(group_divs[g], group_name,
                             TrophyIM.rosterObj.changes.slice());
                             break;
                         }
                     }
                 }
                 while (groups.length) {
-                    new_group = DOMObjects.getHTML('rosterGroup');
-                    group_name = groups.shift();
-                    label_div = getElementsByClassName('trophyimrosterlabel',
+                    var new_group = DOMObjects.getHTML('rosterGroup');
+                    var group_name = groups.shift();
+                    var label_div = getElementsByClassName('trophyimrosterlabel',
                     null, new_group)[0];
                     label_div.appendChild(document.createTextNode(group_name));
                     new_group.appendChild(label_div);
                     new_group = roster_div.appendChild(new_group);
                     //Only update if we have changed jids in this group
-                    for (i in TrophyIM.rosterObj.changes) {
+                    for (var c = 0; c < TrophyIM.rosterObj.changes.length; c++) {
                         if (TrophyIM.rosterObj.groups[group_name][
-                        TrophyIM.rosterObj.changes[i]]) {
+                        TrophyIM.rosterObj.changes[c]]) {
                             TrophyIM.renderGroup(new_group, group_name,
                             TrophyIM.rosterObj.changes.slice());
                             break;
@@ -750,30 +741,29 @@ TrophyIM = {
      *  renderGroup will clobber this.
      */
     renderGroup : function(group_div, group_name, changes) {
-        group_members = TrophyIM.rosterObj.groups[group_name];
-        member_divs = getElementsByClassName('trophyimrosteritem', null,
+        var group_members = TrophyIM.rosterObj.groups[group_name];
+        var member_divs = getElementsByClassName('trophyimrosteritem', null,
         group_div);
-        for (m = 0; m < member_divs.length; m++) {
-            member_div = member_divs[m];
+        for (var m = 0; m < member_divs.length; m++) {
             member_jid = getElementsByClassName('trophyimrosterjid', null,
-            member_div)[0].firstChild.nodeValue;
-            changed_jid = changes[0];
-            if (member_jid > changed_jid) {
-                if (changed_jid in group_members) {
-                    new_presence = TrophyIM.rosterObj.getPresence(changed_jid);
+            member_divs[m])[0].firstChild.nodeValue;
+            if (member_jid > changes[0]) {
+                if (changes[0] in group_members) {
+                    var new_presence = TrophyIM.rosterObj.getPresence(
+                    changes[0]);
                     if(new_presence) {
-                        new_contact =
-                        TrophyIM.rosterObj.getContact(changed_jid);
-                        new_member = DOMObjects.getHTML('rosterItem');
+                        var new_member = DOMObjects.getHTML('rosterItem');
+                        var new_contact =
+                        TrophyIM.rosterObj.getContact(changes[0]);
                         getElementsByClassName('trophyimrosterjid', null,
                         new_member)[0].appendChild(document.createTextNode(
-                        changed_jid));
-                        new_name = (new_contact['name'] != null) ?
-                        new_contact['name'] : changed_jid;
+                        changes[0]));
+                        var new_name = (new_contact['name'] != null) ?
+                        new_contact['name'] : changes[0];
                         getElementsByClassName('trophyimrostername', null,
                         new_member)[0].appendChild(document.createTextNode(
                         new_name));
-                        group_div.insertBefore(new_member, member_div);
+                        group_div.insertBefore(new_member, member_divs[m]);
                         if (new_presence['show'] == "available" ||
                         new_presence['show'] == "chat") {
                             new_member.className =
@@ -787,35 +777,35 @@ TrophyIM = {
                     }
                 }
                 changes.shift();
-            } else if (member_jid == changed_jid) {
+            } else if (member_jid == changes[0]) {
                 member_presence = TrophyIM.rosterObj.getPresence(member_jid);
                 if(member_presence) {
                     if (member_presence['show'] == "available" ||
                     member_presence['show'] == "chat") {
-                        member_div.className =
+                        member_divs[m].className =
                         "trophyimrosteritem trophyimrosteritem_av";
                     } else {
-                        member_div.className =
+                        member_divs[m].className =
                         "trophyimrosteritem trophyimrosteritem_aw";
                     }
                 } else {
                     //show offline status
-                    group_div.removeChild(member_div);
+                    group_div.removeChild(member_divs[m]);
                 }
                 changes.shift();
             }
         }
         while (changes.length > 0) {
             if (changes[0] in group_members) {
-                new_presence = TrophyIM.rosterObj.getPresence(changes[0]);
+                var new_presence = TrophyIM.rosterObj.getPresence(changes[0]);
                 if(new_presence) {
-                    new_contact =
+                    var new_member = DOMObjects.getHTML('rosterItem');
+                    var new_contact =
                     TrophyIM.rosterObj.getContact(changes[0]);
-                    new_member = DOMObjects.getHTML('rosterItem');
                     getElementsByClassName('trophyimrosterjid', null,
                     new_member)[0].appendChild(document.createTextNode(
                     changes[0]));
-                    new_name = (new_contact['name'] != null) ?
+                    var new_name = (new_contact['name'] != null) ?
                     new_contact['name'] : changes[0];
                     getElementsByClassName('trophyimrostername', null,
                     new_member)[0].appendChild(document.createTextNode(
@@ -841,13 +831,13 @@ TrophyIM = {
      *  Handles actions when a roster item is clicked
      */
     rosterClick : function(roster_item) {
-        barejid = getElementsByClassName('trophyimrosterjid', null,
+        var barejid = getElementsByClassName('trophyimrosterjid', null,
         roster_item)[0].firstChild.nodeValue;
-        presence = TrophyIM.rosterObj.getPresence(barejid);
+        var presence = TrophyIM.rosterObj.getPresence(barejid);
         if (presence && presence['resource']) {
-            fulljid = barejid + "/" + presence['resource'];
+            var fulljid = barejid + "/" + presence['resource'];
         } else {
-            fulljid = barejid;
+            var fulljid = barejid;
         }
         TrophyIM.makeChat(fulljid);
         TrophyIM.showChat(barejid);
@@ -857,7 +847,7 @@ TrophyIM = {
      *  Handles actions when a chat tab is clicked
      */
     tabClick : function(tab_item) {
-        barejid = getElementsByClassName('trophyimchattabjid', null,
+        var barejid = getElementsByClassName('trophyimchattabjid', null,
         tab_item)[0].firstChild.nodeValue;
         if (TrophyIM.activeChats['divs'][barejid]) {
             TrophyIM.showChat(barejid);
@@ -868,15 +858,13 @@ TrophyIM = {
      *  Closes chat tab
      */
     tabClose : function(tab_item) {
-        barejid = getElementsByClassName('trophyimchattabjid', null,
+        var barejid = getElementsByClassName('trophyimchattabjid', null,
         tab_item.parentNode)[0].firstChild.nodeValue;
         if (TrophyIM.activeChats['current'] == barejid) {
             if (tab_item.parentNode.nextSibling) {
-                newjid = tab_item.parentNode.nextSibling.lastChild.nodeValue;
-                TrophyIM.showChat(newjid);
+                TrophyIM.showChat(tab_item.parentNode.nextSibling.lastChild.nodeValue);
             } else if (tab_item.parentNode.previousSibling) {
-                newjid = tab_item.parentNode.previousSibling.lastChild.nodeValue;
-                TrophyIM.showChat(newjid);
+                TrophyIM.showChat(tab_item.parentNode.previousSibling.lastChild.nodeValue);
             } else { //no other active chat
                 chat_area.removeChild(getElementsByClassName('trophyimchatbox')[0].parentNode);
                 delete TrophyIM.activeChats['current'];
@@ -891,24 +879,25 @@ TrophyIM = {
      *  Send message from chat input to user
      */
     sendMessage : function(chat_box) {
-        message_input =
+        var message_input =
         getElementsByClassName('trophyimchatinput', null,
         chat_box.parentNode)[0];
-        message = message_input.value;
-        active_jid = TrophyIM.activeChats['current'];
-        if(active_jid) {
-            active_chat = TrophyIM.activeChats['divs'][active_jid];
-            to = active_jid;
+        var active_jid = TrophyIM.activeChats['current'];
+        if(TrophyIM.activeChats['current']) {
+            var active_chat =
+            TrophyIM.activeChats['divs'][TrophyIM.activeChats['current']];
+            var to = TrophyIM.activeChats['current'];
             if (active_chat['resource']) {
                 to += "/" + active_chat['resource'];
             }
-            from = TrophyIM.connection.jid;
-            msg = $msg({to: to, from: from, type: 'chat'}).c('body').t(message);
-            TrophyIM.connection.send(msg.tree());
-            msg_div = document.createElement('div');
+            TrophyIM.connection.send($msg({to: to, from:
+            TrophyIM.connection.jid, type: 'chat'}).c('body').t(
+            message_input.value).tree());
+            var msg_div = document.createElement('div');
             msg_div.className = 'trophyimchatmessage';
-            msg_div.appendChild(document.createTextNode("Me:\n" + message));
-            chat_box =
+            msg_div.appendChild(document.createTextNode("Me:\n" +
+            message_input.value));
+            var chat_box =
             getElementsByClassName('trophyimchatbox', null,
             active_chat['box'])[0];
             chat_box.appendChild(msg_div);
@@ -946,25 +935,19 @@ function TrophyIMRoster() {
      *    (Array) groups - array of groups contact is member of
      */
     this.addContact = function(jid, subscription, name, groups) {
-        contact = {jid:jid, subscription:subscription, name:name, groups:groups}
-        jid_lower = jid.toLowerCase();
+        var contact = {jid:jid, subscription:subscription, name:name, groups:groups}
+        var jid_lower = jid.toLowerCase();
         if (this.roster[jid_lower]) {
             this.roster[jid_lower]['contact'] = contact;
         } else {
             this.roster[jid_lower] = {contact:contact};
         }
-        if (groups) { //Add to all listed groups
-            for (g = 0; g < groups.length; g++) {
-                if (!this.groups[groups[g]]) {
-                    this.groups[groups[g]] = {};
-                }
-                this.groups[groups[g]][jid_lower] = jid_lower;
+        groups = groups ? groups : [''];
+        for (var g = 0; g < groups.length; g++) {
+            if (!this.groups[groups[g]]) {
+                this.groups[groups[g]] = {};
             }
-        } else { //Add to empty name group
-            if (!this.groups['']) {
-                this.groups[''] = {};
-            }
-            this.groups[''][jid_lower] = jid_lower;
+            this.groups[groups[g]][jid_lower] = jid_lower;
         }
     }
     /** Function: getContact
@@ -974,9 +957,8 @@ function TrophyIMRoster() {
      *  Parameter: (String) jid - jid to return
      */
     this.getContact = function(jid) {
-        roster_entry = this.roster[jid.toLowerCase()];
-        if (roster_entry) {
-            return roster_entry['contact'];
+        if (this.roster[jid.toLowerCase()]) {
+            return this.roster[jid.toLowerCase()]['contact'];
         }
     }
     /** Function: setPresence
@@ -990,39 +972,46 @@ function TrophyIMRoster() {
      *    (String) status: status attribute from presence
      */
     this.setPresence = function(fulljid, priority, show, status) {
-        resource = Strophe.getResourceFromJid(fulljid);
-        barejid = Strophe.getBareJidFromJid(fulljid);
-        jid_lower = barejid.toLowerCase();
+        var barejid = Strophe.getBareJidFromJid(fulljid);
+        var resource = Strophe.getResourceFromJid(fulljid);
+        var jid_lower = barejid.toLowerCase();
         if(show != 'unavailable') {
             if (!this.roster[jid_lower]) {
                 this.addContact(barejid, 'not-in-roster');
             }
-            presence = {
+            var presence = {
                 resource:resource, priority:priority, show:show, status:status
             }
             if (!this.roster[jid_lower]['presence']) {
                 this.roster[jid_lower]['presence'] = {}
             }
             this.roster[jid_lower]['presence'][resource] = presence
-        } else if (this.roster[jid_lower] && this.roster[jid_lower]['presence'] &&
-        this.roster[jid_lower]['presence'][resource]) {
+        } else if (this.roster[jid_lower] && this.roster[jid_lower]['presence']
+        && this.roster[jid_lower]['presence'][resource]) {
             delete this.roster[jid_lower]['presence'][resource];
         }
-        found = false;
-        for (x in this.changes) {
-            if (this.changes[x] == jid_lower) {
-                found = true;
-                break;
+        this.addChange(jid_lower);
+        if (TrophyIM.activeChats['divs'][jid_lower]) {
+            TrophyIM.setTabPresence(jid_lower, 
+            TrophyIM.activeChats['divs'][jid_lower]['tab']);
+        }
+    }
+    /** Function: addChange
+     *
+     *  Adds given jid to this.changes, keeping this.changes sorted and
+     *  preventing duplicates.
+     *
+     *  Parameters
+     *    (String) jid : jid to add to this.changes
+     */
+    this.addChange = function(jid) {
+        for (var c = 0; c < this.changes.length; c++) {
+            if (this.changes[c] == jid) {
+                return;
             }
         }
-        if (!found) {
-            this.changes[this.changes.length] = jid_lower;
-        }
+        this.changes[this.changes.length] = jid;
         this.changes.sort();
-        change_div = TrophyIM.activeChats['divs'][jid_lower];
-        if (change_div) {
-            TrophyIM.setTabPresence(jid_lower, change_div['tab']);
-        }
     }
     /** Function: getPresence
      *
@@ -1032,12 +1021,12 @@ function TrophyIMRoster() {
      *  Parameter: (String) fulljid - jid to return best presence for
      */
     this.getPresence = function(fulljid) {
-        jid = Strophe.getBareJidFromJid(fulljid);
-        jid_lower = jid.toLowerCase()
-        current = null;
-        if (this.roster[jid_lower] && this.roster[jid_lower]['presence']) {
-            for (var resource in this.roster[jid_lower]['presence']) {
-                presence = this.roster[jid_lower]['presence'][resource];
+        var jid = Strophe.getBareJidFromJid(fulljid);
+        var current = null;
+        if (this.roster[jid.toLowerCase()] &&
+        this.roster[jid.toLowerCase()]['presence']) {
+            for (var resource in this.roster[jid.toLowerCase()]['presence']) {
+                var presence = this.roster[jid.toLowerCase()]['presence'][resource];
                 if (current == null) {
                     current = presence
                 } else {
@@ -1198,7 +1187,7 @@ var getElementsByClassName = function (className, tag, elm){
  *
  * Bootstrap self into window.onload
  */
-oldonload = window.onload;
+var oldonload = window.onload;
 window.onload = function() {
     if(oldonload) {
         oldonload();
