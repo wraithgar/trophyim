@@ -852,11 +852,14 @@ TrophyIM = {
         tab_item.parentNode)[0].firstChild.nodeValue;
         if (TrophyIM.activeChats['current'] == barejid) {
             if (tab_item.parentNode.nextSibling) {
-                TrophyIM.showChat(tab_item.parentNode.nextSibling.lastChild.nodeValue);
+                TrophyIM.showChat(getElementsByClassName('trophyimchattabjid',
+                null, tab_item.parentNode.nextSibling)[0].firstChild.nodeValue);
             } else if (tab_item.parentNode.previousSibling) {
-                TrophyIM.showChat(tab_item.parentNode.previousSibling.lastChild.nodeValue);
+                TrophyIM.showChat(getElementsByClassName('trophyimchattabjid',
+                null, tab_item.parentNode.previousSibling)[0].firstChild.nodeValue);
             } else { //no other active chat
-                chat_area.removeChild(getElementsByClassName('trophyimchatbox')[0].parentNode);
+                document.getElementById('trophyimchat').removeChild(
+                getElementsByClassName('trophyimchatbox')[0].parentNode);
                 delete TrophyIM.activeChats['current'];
             }
         }
