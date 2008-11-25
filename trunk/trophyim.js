@@ -5,6 +5,8 @@
     Copyright 2008 Michael Garvin
 */
 /*TODO dump / very loose roadmap
+--0.3
+Add chat tab persistance, with last 10? messages in each tab remembered
 --0.4
 add chats to json store
 Mouseover status messages in roster
@@ -33,7 +35,7 @@ var TROPHYIM_LOG_LINES = 200;
 var TROPHYIM_LOGLEVEL = 1; //0=debug, 1=info, 2=warn, 3=error, 4=fatal
 var TROPHYIM_VERSION = "0.3-dev";
 //Uncomment to make session reattachment work
-//var TROPHYIM_JSON_STORE = "json_store.php";
+var TROPHYIM_JSON_STORE = "json_store.php";
 
 /** File: trophyimclient.js
  *  A JavaScript front-end for strophe.js
@@ -308,7 +310,8 @@ TrophyIM = {
      */
     showLogin : function() {
         //JSON is the last script to load, so we wait on it
-        if (typeof(JSON) != undefined) {
+        //Added Strophe check too because of bug where it's sometimes missing
+        if (typeof(JSON) != undefined && typeof(Strophe) != undefined) {
             TrophyIM.JSONStore = new TrophyIMJSONStore();
             if (TrophyIM.JSONStore.store_working && TrophyIM.cookies['trophyim_bosh_xid']) {
                 var xids = TrophyIM.cookies['trophyim_bosh_xid'].split("|");
@@ -1163,7 +1166,7 @@ function TrophyIMJSONStore() {
             if (xhr.readyState == 4 && xhr.status == 200) {
                 try {
                     var dataObj = JSON.parse(xhr.responseText);
-                    return dataObj;
+                    return this.emptyFix(dataObj);
                 } catch(e) {
                     Strophe.error("Could not parse JSONStore response" +
                     xhr.responseText);
@@ -1174,6 +1177,24 @@ function TrophyIMJSONStore() {
                 return false;
             }
         }
+    }
+    /** Function emptyFix
+     *    Fix for bugs in external JSON implementations such as
+     *    http://bugs.php.net/bug.php?id=41504.
+     *    A.K.A. Don't use PHP, people.
+     */
+    this.emptyFix = function(obj) {
+        if (typeof(obj) == "object") {
+            for (var i in obj) {
+                if (i == '_empty_') {
+                    obj[""] = this.emptyFix(obj['_empty_']);
+                    delete obj['_empty_'];
+                } else {
+                    obj[i] = this.emptyFix(obj[i]);
+                }
+            }
+        }
+        return obj
     }
     /** Function delData
      *    Deletes data from JSONStore
@@ -1227,6 +1248,7 @@ function TrophyIMJSONStore() {
         if (typeof(TROPHYIM_JSON_STORE) != undefined) {
             Strophe.debug("Storing JSONStore data");
             var senddata = "set=" + JSON.stringify(vars);
+            Strophe.info(senddata);
             var xhr = this._newXHR();
             try {
                 xhr.open("POST", TROPHYIM_JSON_STORE, false);
