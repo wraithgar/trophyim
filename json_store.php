@@ -9,7 +9,7 @@
  */
 session_start();
 if ($_REQUEST['set']) {
-    $setArr = json_decode(stripslashes($_REQUEST['set']), true);
+    $setArr = json_decode(stripslashes($_REQUEST['set']));
     if ($setArr) {
         foreach ($setArr as $key => $value) {
             $_SESSION[$key] = $value;
@@ -30,17 +30,3 @@ if ($_REQUEST['set']) {
 } else {
     print "JSONStore";
 }
-
-function merge(&$arr1, $arr2) {
-    foreach ($arr2 as $key => $value) {
-        if ($value == null) {
-            unset($arr1[$key]);
-        } else if (is_array($value)) {
-            $arr1[$key] = merge($value);
-        } else {
-            $arr1[$key] = $value;
-        }
-    }
-    return $arr1;
-}
-?>
