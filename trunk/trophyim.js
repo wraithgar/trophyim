@@ -1248,7 +1248,6 @@ function TrophyIMJSONStore() {
         if (typeof(TROPHYIM_JSON_STORE) != undefined) {
             Strophe.debug("Storing JSONStore data");
             var senddata = "set=" + JSON.stringify(vars);
-            Strophe.info(senddata);
             var xhr = this._newXHR();
             try {
                 xhr.open("POST", TROPHYIM_JSON_STORE, false);
