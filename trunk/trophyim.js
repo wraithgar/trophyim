@@ -5,11 +5,9 @@
     Copyright 2008 Michael Garvin
 */
 /*TODO dump / very loose roadmap
---0.3
-Mouseover status messages in roster
-JSON encoding and offloading of roster/presence
-Strophe.attach functionality
 --0.4
+add chats to json store
+Mouseover status messages in roster
 HTML in messages (xslt?)
 Select presence status/message
 Optional user-specified resource
@@ -27,11 +25,15 @@ make sure makeChat() et al. can handle empty resources
 --1.0 (or whenever someone submits better .css)
 layout overhaul
 code cleanup (like checking for excessive function lengths)
+roster versioning http://xmpp.org/extensions/attic/xep-0237-0.1.html
+make sure onload bootstrapping actually preserves existing onloads
 */
 var TROPHYIM_BOSH_SERVICE = '/proxy/xmpp-httpbind';  //Change to suit
 var TROPHYIM_LOG_LINES = 200;
 var TROPHYIM_LOGLEVEL = 1; //0=debug, 1=info, 2=warn, 3=error, 4=fatal
 var TROPHYIM_VERSION = "0.3-dev";
+//Uncomment to make session reattachment work
+//var TROPHYIM_JSON_STORE = "json_store.php";
 
 /** File: trophyimclient.js
  *  A JavaScript front-end for strophe.js
@@ -198,6 +200,12 @@ DOMObjects = {
  *  'trophyimclient' element and inserts itself into that.
  */
 TrophyIM = {
+    /** Constants:
+     *
+     *    (Boolean) stale_roster - roster is stale and needs to be completely
+     *    rewritten.
+     */
+    constants : {stale_roster: false},
     /** Object: activeChats
      *
      *  This object stores the currently active chats.
@@ -281,24 +289,42 @@ TrophyIM = {
             alert("Cannot load TrophyIM client.\nClient div not found.");
         }
     },
+    /** Function: storeData
+     *
+     *  Store all our data in the JSONStore, if it is active
+     */
+    storeData : function() {
+        if (TrophyIM.connection && TrophyIM.connection.connected) {
+            TrophyIM.setCookie('trophyim_bosh_xid', TrophyIM.connection.jid + "|" +
+            TrophyIM.connection.sid + "|" +  TrophyIM.connection.rid);
+            TrophyIM.rosterObj.save();
+        }
+    },
     /**  Function: showlogin
      *
      *   This function clears out the IM box and either redisplays the login
-     *   page, or re-attaches to srophe
-     *   preserving the logging div if it exists.
+     *   page, or re-attaches to Strophe, preserving the logging div if it
+     *   exists, or creating a new one of we are re-attaching.
      */
     showLogin : function() {
         //JSON is the last script to load, so we wait on it
         if (typeof(JSON) != undefined) {
-            if (false && TrophyIM.cookies['trophyim_bosh_xid']) {
+            TrophyIM.JSONStore = new TrophyIMJSONStore();
+            if (TrophyIM.JSONStore.store_working && TrophyIM.cookies['trophyim_bosh_xid']) {
                 var xids = TrophyIM.cookies['trophyim_bosh_xid'].split("|");
-                TrophyIM.log(Strophe.LogLevel.INFO, 'Attempting Strophe attach.');
+                TrophyIM.constants.stale_roster = true;
+                if (TrophyIM.cookies['trophyimloglevel']) {
+                    TrophyIM.client_div.appendChild(DOMObjects.getHTML('loggingDiv'));
+                    TrophyIM.logging_div = document.getElementById('trophyimlog');
+                }
                 TrophyIM.connection = new Strophe.Connection(TROPHYIM_BOSH_SERVICE);
                 TrophyIM.connection.rawInput = TrophyIM.rawInput;
                 TrophyIM.connection.rawOutput = TrophyIM.rawOutput;
                 Strophe.log = TrophyIM.log;
+                Strophe.info('Attempting Strophe attach.');
                 TrophyIM.connection.attach(xids[0], xids[1], xids[2],
                 TrophyIM.onConnect);
+                TrophyIM.onConnect(Strophe.Status.CONNECTED);
             } else {
                 var logging_div = TrophyIM.clearClient();
                 TrophyIM.client_div.appendChild(DOMObjects.getHTML('loginPage'));
@@ -343,14 +369,14 @@ TrophyIM = {
      *  This logs the packets actually recieved by strophe at the debug level
      */
     rawInput : function (data) {
-        TrophyIM.log(Strophe.LogLevel.DEBUG, "RECV: " + data);
+        Strophe.debug("RECV: " + data);
     },
     /** Function: rawInput
      *
      *  This logs the packets actually recieved by strophe at the debug level
      */
     rawOutput : function (data) {
-        TrophyIM.log(Strophe.LogLevel.DEBUG, "SEND: " + data);
+        Strophe.debug("SEND: " + data);
     },
     /** Function: login
      *
@@ -374,6 +400,9 @@ TrophyIM = {
                 TrophyIM.logging_div = null;
             }
         }
+        if (TrophyIM.JSONStore.store_working) { //In case they never logged out
+            TrophyIM.JSONStore.delData(['groups','roster','presence']);
+        }
         TrophyIM.connection = new Strophe.Connection(TROPHYIM_BOSH_SERVICE);
         TrophyIM.connection.rawInput = TrophyIM.rawInput;
         TrophyIM.connection.rawOutput = TrophyIM.rawOutput;
@@ -392,8 +421,16 @@ TrophyIM = {
         }
 
     },
+    /** Function: login
+     *
+     *  Logs into fresh session through Strophe, purging any old data.
+     */
     logout : function() {
         TrophyIM.delCookie('trophyim_bosh_xid');
+        delete TrophyIM['cookies']['trophyim_bosh_xid'];
+        if (TrophyIM.JSONStore.store_working) {
+            TrophyIM.JSONStore.delData(['groups','roster','presence']);
+        }
         for (var chat in TrophyIM.activeChats['divs']) {
             delete TrophyIM.activeChats['divs'][chat];
         }
@@ -401,21 +438,25 @@ TrophyIM = {
         TrophyIM.connection.disconnect();
         TrophyIM.showLogin();
     },
+    /** Function onConnect
+     *
+     *  Callback given to Strophe upon connection to BOSH proxy.
+     */
     onConnect : function(status) {
         if (status == Strophe.Status.CONNECTING) {
-            TrophyIM.log(Strophe.LogLevel.INFO, 'Strophe is connecting.');
+            Strophe.info('Strophe is connecting.');
         } else if (status == Strophe.Status.CONNFAIL) {
-            TrophyIM.log(Strophe.LogLevel.INFO, 'Strophe failed to connect.');
+            Strophe.info('Strophe failed to connect.');
             TrophyIM.delCookie('trophyim_bosh_xid');
             TrophyIM.showLogin();
         } else if (status == Strophe.Status.DISCONNECTING) {
-            TrophyIM.log(Strophe.LogLevel.INFO, 'Strophe is disconnecting.');
+            Strophe.info('Strophe is disconnecting.');
         } else if (status == Strophe.Status.DISCONNECTED) {
-            TrophyIM.log(Strophe.LogLevel.INFO, 'Strophe is disconnected.');
+            Strophe.info('Strophe is disconnected.');
             TrophyIM.delCookie('trophyim_bosh_xid');
             TrophyIM.showLogin();
         } else if (status == Strophe.Status.CONNECTED) {
-            TrophyIM.log(Strophe.LogLevel.INFO, 'Strophe is connected.');
+            Strophe.info('Strophe is connected.');
             TrophyIM.showClient();
         }
     },
@@ -426,8 +467,8 @@ TrophyIM = {
      *  registers all the handlers for Strophe to call in the client.
      */
     showClient : function() {
-        //TrophyIM.setCookie('trophyim_bosh_xid', TrophyIM.connection.jid + "|" +
-        //TrophyIM.connection.sid + "|" +  TrophyIM.connection.rid);
+        TrophyIM.setCookie('trophyim_bosh_xid', TrophyIM.connection.jid + "|" +
+        TrophyIM.connection.sid + "|" +  TrophyIM.connection.rid);
         var logging_div = TrophyIM.clearClient();
         TrophyIM.client_div.appendChild(DOMObjects.getHTML('rosterDiv'));
         TrophyIM.client_div.appendChild(DOMObjects.getHTML('chatArea'));
@@ -473,7 +514,7 @@ TrophyIM = {
      *  jabber:iq:version query handler
      */
     onVersion : function(msg) {
-        TrophyIM.log(Strophe.LogLevel.DEBUG, "Version handler");
+        Strophe.debug("Version handler");
         if (msg.getAttribute('type') == 'get') {
             var from = msg.getAttribute('from');
             var to = msg.getAttribute('to');
@@ -490,7 +531,7 @@ TrophyIM = {
      *  Roster iq handler
      */
     onRoster : function(msg) {
-        TrophyIM.log(Strophe.LogLevel.DEBUG, "Roster handler");
+        Strophe.debug("Roster handler");
         var roster_items = msg.firstChild.getElementsByTagName('item');
         for (var i = 0; i < roster_items.length; i++) {
             var groups = roster_items[i].getElementsByTagName('group');
@@ -514,7 +555,7 @@ TrophyIM = {
      *  Presence handler
      */
     onPresence : function(msg) {
-        TrophyIM.log(Strophe.LogLevel.DEBUG, "Presence handler");
+        Strophe.debug("Presence handler");
         var type = msg.getAttribute('type') ? msg.getAttribute('type') :
         'available';
         var show = msg.getElementsByTagName('show').length ? Strophe.getText(
@@ -532,7 +573,7 @@ TrophyIM = {
      *  Message handler
      */
     onMessage : function(msg) {
-        TrophyIM.log(Strophe.LogLevel.DEBUG, "Message handler");
+        Strophe.debug("Message handler");
         var from = msg.getAttribute('from');
         var type = msg.getAttribute('type');
         var elems = msg.getElementsByTagName('body');
@@ -667,70 +708,66 @@ TrophyIM = {
                 for (var g = 0; g < group_divs.length; g++) {
                     var group_name = getElementsByClassName('trophyimrosterlabel',
                     null, group_divs[g])[0].firstChild.nodeValue;
-                    if (group_name > groups[0]) {
-                        var new_group = DOMObjects.getHTML('rosterGroup');
-                        var label_div = getElementsByClassName(
-                        'trophyimrosterlabel', null, new_group)[0];
-                        label_div.appendChild(document.createTextNode(
-                        groups[0]));
-                        new_group.appendChild(label_div);
+                    while (group_name > groups[0]) {
+                        var new_group = TrophyIM.renderGroup(groups[0], roster_div);
                         new_group = roster_div.insertBefore(new_group,
                         group_divs[g]);
-                        //Only update if we have changed jids in this group
-                        for (var c = 0; c <  TrophyIM.rosterObj.changes.length;
-                        c++) {
-                            if (TrophyIM.rosterObj.groups[groups[0]][
-                            TrophyIM.rosterObj.changes[c]]) {
-                                TrophyIM.renderGroup(new_group, groups[0],
-                                TrophyIM.rosterObj.changes.slice());
-                                break;
-                            }
+                        if (TrophyIM.rosterObj.groupHasChanges(groups[0])) {
+                            TrophyIM.renderGroupUsers(new_group, groups[0],
+                            TrophyIM.rosterObj.changes.slice());
                         }
-                    } else if (group_name == groups[0]) {
                         groups.shift();
                     }
-                    //Only update if we have changed jids in this group
-                    for (var c = 0; c < TrophyIM.rosterObj.changes.length; c++) {
-                        if (TrophyIM.rosterObj.groups[group_name][
-                        TrophyIM.rosterObj.changes[c]]) {
-                            TrophyIM.renderGroup(group_divs[g], group_name,
-                            TrophyIM.rosterObj.changes.slice());
-                            break;
-                        }
+                    if (group_name == groups[0]) {
+                        groups.shift();
+                    }
+                    if (TrophyIM.rosterObj.groupHasChanges(group_name)) {
+                        TrophyIM.renderGroupUsers(group_divs[g], group_name,
+                        TrophyIM.rosterObj.changes.slice());
                     }
                 }
                 while (groups.length) {
-                    var new_group = DOMObjects.getHTML('rosterGroup');
                     var group_name = groups.shift();
-                    var label_div = getElementsByClassName('trophyimrosterlabel',
-                    null, new_group)[0];
-                    label_div.appendChild(document.createTextNode(group_name));
-                    new_group.appendChild(label_div);
+                    var new_group = TrophyIM.renderGroup(group_name,
+                    roster_div);
                     new_group = roster_div.appendChild(new_group);
-                    //Only update if we have changed jids in this group
-                    for (var c = 0; c < TrophyIM.rosterObj.changes.length; c++) {
-                        if (TrophyIM.rosterObj.groups[group_name][
-                        TrophyIM.rosterObj.changes[c]]) {
-                            TrophyIM.renderGroup(new_group, group_name,
-                            TrophyIM.rosterObj.changes.slice());
-                            break;
-                        }
+                    if (TrophyIM.rosterObj.groupHasChanges(group_name)) {
+                        TrophyIM.renderGroupUsers(new_group, group_name,
+                        TrophyIM.rosterObj.changes.slice());
                     }
                 }
             }
+            TrophyIM.rosterObj.changes = new Array();
         }
-        //Clear out changes
-        TrophyIM.rosterObj.changes = new Array();
         setTimeout("TrophyIM.renderRoster()", 1000);
     },
     /** Function: renderGroup
      *
+     *  Renders actual group label in roster
+     *
+     *  Parameters: 
+     *    (String) group - name of group to render
+     *    (DOM) roster_div - roster div
+     *
+     *  Returns:
+     *    DOM group div to append into roster
+     */
+    renderGroup : function(group, roster_div) {
+        var new_group = DOMObjects.getHTML('rosterGroup');
+        var label_div = getElementsByClassName( 'trophyimrosterlabel', null,
+        new_group)[0];
+        label_div.appendChild(document.createTextNode(group));
+        new_group.appendChild(label_div);
+        return new_group;
+    },
+    /** Function: renderGroupUsers
+     *
      *  Re-renders user entries in given group div based on status of roster
      *
      *  Parameter: (Array) changes - jids with changes in the roster.  Note:
-     *  renderGroup will clobber this.
+     *  renderGroupUsers will clobber this.
      */
-    renderGroup : function(group_div, group_name, changes) {
+    renderGroupUsers : function(group_div, group_name, changes) {
         var group_members = TrophyIM.rosterObj.groups[group_name];
         var member_divs = getElementsByClassName('trophyimrosteritem', null,
         group_div);
@@ -904,19 +941,31 @@ TrophyIM = {
 /** Class: TrophyIMRoster
  *
  *
- *  This object stores the roster and presence info for the TrohyIMClient
+ *  This object stores the roster and presence info for the TrophyIMClient
  *
+ *  roster[jid_lower]['contact']
+ *  roster[jid_lower]['presence'][resource]
  */
 function TrophyIMRoster() {
     /** Constants: internal arrays
      *    (Object) roster - the actual roster/presence information
      *    (Object) groups - list of current groups in the roster
-     *    (Array) changes - array of jids with presence changes, whatever
-     *    watches the roster should clear these as it handles them.
+     *    (Array) changes - array of jids with presence changes
      */
-    this.roster = {};
-    this.groups = {};
+    if (TrophyIM.JSONStore.store_working) {
+        var data = TrophyIM.JSONStore.getData(['roster', 'groups']);
+        this.roster = (data['roster'] != null) ? data['roster'] : {};
+        this.groups = (data['groups'] != null) ? data['groups'] : {};
+    } else {
+        this.roster = {};
+        this.groups = {};
+    }
     this.changes = new Array();
+    if (TrophyIM.constants.stale_roster) {
+        for (var jid in this.roster) {
+            this.changes[this.changes.length] = jid;
+        }
+    }
     /** Function: addContact
      *
      *  Adds given contact to roster
@@ -1032,6 +1081,178 @@ function TrophyIMRoster() {
             }
         }
         return current;
+    }
+    /** Function: groupHasChanges
+     *
+     *  Returns true if current group has members in this.changes
+     *
+     *  Parameters:
+     *    (String) group - name of group to check
+     */
+    this.groupHasChanges = function(group) {
+        for (var c = 0; c < this.changes.length; c++) {
+            if (this.groups[group][this.changes[c]]) {
+                return true;
+            }
+        }
+        return false;
+    }
+    /** Fuction: save
+     *
+     *  Saves roster data to JSON store
+     */
+    this.save = function() {
+        if (TrophyIM.JSONStore.store_working) {
+            TrophyIM.JSONStore.setData({roster:this.roster,
+            groups:this.groups});
+        }
+    }
+}
+/** Class: TrophyIMJSONStore
+ *
+ *
+ *  This object is the mechanism by which TrophyIM stores and retrieves its
+ *  variables from the url provided by TROPHYIM_JSON_STORE
+ *
+ */
+function TrophyIMJSONStore() {
+    this.store_working = false;
+    /** Function _newXHR
+     *
+     *  Set up new cross-browser xmlhttprequest object
+     *
+     *  Parameters:
+     *    (function) handler = what to set onreadystatechange to
+     */
+     this._newXHR = function (handler) {
+        var xhr = null;
+        if (window.XMLHttpRequest) {
+            xhr = new XMLHttpRequest();
+            if (xhr.overrideMimeType) {
+            xhr.overrideMimeType("text/xml");
+            }
+        } else if (window.ActiveXObject) {
+            xhr = new ActiveXObject("Microsoft.XMLHTTP");
+        }
+        return xhr;
+    }
+    /** Function getData
+     *  Gets data from JSONStore
+     *
+     *  Parameters:
+     *    (Array) vars = Variables to get from JSON store
+     *
+     *  Returns:
+     *    Object with variables indexed by names given in parameter 'vars'
+     */
+    this.getData = function(vars) {
+        if (typeof(TROPHYIM_JSON_STORE) != undefined) {
+            Strophe.debug("Retrieving JSONStore data");
+            var xhr = this._newXHR();
+            var getdata = "get=" + vars.join(",");
+            try {
+                xhr.open("POST", TROPHYIM_JSON_STORE, false);
+            } catch (e) {
+                Strophe.error("JSONStore open failed.");
+                return false;
+            }
+            xhr.setRequestHeader('Content-type',
+            'application/x-www-form-urlencoded');
+            xhr.setRequestHeader('Content-length', getdata.length);
+            xhr.send(getdata);
+            if (xhr.readyState == 4 && xhr.status == 200) {
+                try {
+                    var dataObj = JSON.parse(xhr.responseText);
+                    return dataObj;
+                } catch(e) {
+                    Strophe.error("Could not parse JSONStore response" +
+                    xhr.responseText);
+                    return false;
+                }
+            } else {
+                Strophe.error("JSONStore open failed. Status: " + xhr.status);
+                return false;
+            }
+        }
+    }
+    /** Function delData
+     *    Deletes data from JSONStore
+     * 
+     *  Parameters:
+     *    (Array) vars  = Variables to delete from JSON store
+     *
+     *  Returns:
+     *    Status of delete attempt.
+     */
+    this.delData = function(vars) {
+        if (typeof(TROPHYIM_JSON_STORE) != undefined) {
+            Strophe.debug("Retrieving JSONStore data");
+            var xhr = this._newXHR();
+            var deldata = "del=" + vars.join(",");
+            try {
+                xhr.open("POST", TROPHYIM_JSON_STORE, false);
+            } catch (e) {
+                Strophe.error("JSONStore open failed.");
+                return false;
+            }
+            xhr.setRequestHeader('Content-type',
+            'application/x-www-form-urlencoded');
+            xhr.setRequestHeader('Content-length', deldata.length);
+            xhr.send(deldata);
+            if (xhr.readyState == 4 && xhr.status == 200) {
+                try {
+                    var dataObj = JSON.parse(xhr.responseText);
+                    return dataObj;
+                } catch(e) {
+                    Strophe.error("Could not parse JSONStore response");
+                    return false;
+                }
+            } else {
+                Strophe.error("JSONStore open failed. Status: " + xhr.status);
+                return false;
+            }
+        }
+    }
+    /** Function setData
+     *    Stores data in JSONStore, overwriting values if they exist
+     *
+     *  Parameters:
+     *    (Object) vars : Object containing named vars to store ({name: value,
+     *    othername: othervalue})
+     *
+     *  Returns:
+     *    Status of storage attempt
+     */
+    this.setData = function(vars) {
+        if (typeof(TROPHYIM_JSON_STORE) != undefined) {
+            Strophe.debug("Storing JSONStore data");
+            var senddata = "set=" + JSON.stringify(vars);
+            var xhr = this._newXHR();
+            try {
+                xhr.open("POST", TROPHYIM_JSON_STORE, false);
+            } catch (e) {
+                Strophe.error("JSONStore open failed.");
+                return false;
+            }
+            xhr.setRequestHeader('Content-type',
+            'application/x-www-form-urlencoded');
+            xhr.setRequestHeader('Content-length', senddata.length);
+            xhr.send(senddata);
+            if (xhr.readyState == 4 && xhr.status == 200 && xhr.responseText ==
+            "OK") {
+                return true;
+            } else {
+                Strophe.error("JSONStore open failed. Status: " + xhr.status);
+                return false;
+            }
+        }
+    }
+    var testData = true;
+    if (this.setData({testData:testData})) {
+        var testResult = this.getData(['testData']);
+        if (testResult && testResult['testData'] == true) {
+            this.store_working = true;
+        }
     }
 }
 /** Constants: Node types
@@ -1178,7 +1399,7 @@ var getElementsByClassName = function (className, tag, elm){
 
 /**
  *
- * Bootstrap self into window.onload
+ * Bootstrap self into window.onload and window.onunload
  */
 var oldonload = window.onload;
 window.onload = function() {
@@ -1187,3 +1408,10 @@ window.onload = function() {
     }
     TrophyIM.load();
 };
+var oldonunload = window.onunload;
+window.onunload = function() {
+    if(oldonunload) {
+        oldonunload();
+    }
+    TrophyIM.storeData();
+}
