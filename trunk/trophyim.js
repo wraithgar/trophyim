@@ -5,8 +5,6 @@
     Copyright 2008 Michael Garvin
 */
 /*TODO dump / very loose roadmap
---0.3
-Add chat tab persistance, with last 10? messages in each tab remembered
 --0.4
 add chats to json store
 Mouseover status messages in roster
@@ -33,9 +31,9 @@ make sure onload bootstrapping actually preserves existing onloads
 var TROPHYIM_BOSH_SERVICE = '/proxy/xmpp-httpbind';  //Change to suit
 var TROPHYIM_LOG_LINES = 200;
 var TROPHYIM_LOGLEVEL = 1; //0=debug, 1=info, 2=warn, 3=error, 4=fatal
-var TROPHYIM_VERSION = "0.3-dev";
+var TROPHYIM_VERSION = "0.3";
 //Uncomment to make session reattachment work
-var TROPHYIM_JSON_STORE = "json_store.php";
+//var TROPHYIM_JSON_STORE = "json_store.php";
 
 /** File: trophyimclient.js
  *  A JavaScript front-end for strophe.js
@@ -204,10 +202,15 @@ DOMObjects = {
 TrophyIM = {
     /** Constants:
      *
-     *    (Boolean) stale_roster - roster is stale and needs to be completely
-     *    rewritten.
+     *    (Boolean) stale_roster - roster is stale and needs to be rewritten.
      */
     constants : {stale_roster: false},
+    /** Object: chatHistory
+     *
+     *  Stores chat history (last 10 message) and current presence of active
+     *  chat tabs.  Indexed by jid.
+     */
+    chatHistory : {},
     /** Object: activeChats
      *
      *  This object stores the currently active chats.
@@ -237,6 +240,7 @@ TrophyIM = {
         var expire = new Date();
         expire.setDate(expire.getDate() - 365);
         document.cookie = name + "= ; expires=" + expire.toGMTString();
+        delete TrophyIM.cookies[name];
     },
     /** Function: getCookies
      *
@@ -315,6 +319,7 @@ TrophyIM = {
             TrophyIM.JSONStore = new TrophyIMJSONStore();
             if (TrophyIM.JSONStore.store_working && TrophyIM.cookies['trophyim_bosh_xid']) {
                 var xids = TrophyIM.cookies['trophyim_bosh_xid'].split("|");
+                TrophyIM.delCookie('trophyim_bosh_xid');
                 TrophyIM.constants.stale_roster = true;
                 if (TrophyIM.cookies['trophyimloglevel']) {
                     TrophyIM.client_div.appendChild(DOMObjects.getHTML('loggingDiv'));
@@ -404,7 +409,8 @@ TrophyIM = {
             }
         }
         if (TrophyIM.JSONStore.store_working) { //In case they never logged out
-            TrophyIM.JSONStore.delData(['groups','roster','presence']);
+            TrophyIM.JSONStore.delData(['groups','roster', 'active_chat',
+            'chat_history']);
         }
         TrophyIM.connection = new Strophe.Connection(TROPHYIM_BOSH_SERVICE);
         TrophyIM.connection.rawInput = TrophyIM.rawInput;
@@ -432,7 +438,8 @@ TrophyIM = {
         TrophyIM.delCookie('trophyim_bosh_xid');
         delete TrophyIM['cookies']['trophyim_bosh_xid'];
         if (TrophyIM.JSONStore.store_working) {
-            TrophyIM.JSONStore.delData(['groups','roster','presence']);
+            TrophyIM.JSONStore.delData(['groups','roster', 'active_chat',
+            'chat_history']);
         }
         for (var chat in TrophyIM.activeChats['divs']) {
             delete TrophyIM.activeChats['divs'][chat];
@@ -493,6 +500,7 @@ TrophyIM = {
         TrophyIM.connection.send($iq({type: 'get', xmlns: Strophe.NS.CLIENT}).c(
         'query', {xmlns: Strophe.NS.ROSTER}).tree());
         TrophyIM.connection.send($pres().tree());
+        TrophyIM.renderChats();
         setTimeout("TrophyIM.renderRoster()", 1000);
     },
     /** Function: clearClient
@@ -582,8 +590,9 @@ TrophyIM = {
         var elems = msg.getElementsByTagName('body');
 
         if ((type == 'chat' || type == 'normal') && elems.length > 0) {
-            barejid = Strophe.getBareJidFromJid(from);
-            contact = TrophyIM.rosterObj.roster[barejid.toLowerCase()]['contact'];
+            var barejid = Strophe.getBareJidFromJid(from);
+            var jid_lower = barejid.toLowerCase();
+            var contact = TrophyIM.rosterObj.roster[barejid.toLowerCase()]['contact'];
             if (contact) { //Do we know you?
                 if (contact['name'] != null) {
                     message  = contact['name'] + " (" + barejid + "): ";
@@ -592,18 +601,12 @@ TrophyIM = {
                 }
                 message += Strophe.getText(elems[0]);
                 TrophyIM.makeChat(from); //Make sure we have a chat window
-                chat_box = getElementsByClassName('trophyimchatbox', 'div',
-                TrophyIM.activeChats['divs'][barejid.toLowerCase()]['box'])[0];
-                msg_div = document.createElement('div');
-                msg_div.className = 'trophyimchatmessage';
-                msg_div.appendChild(document.createTextNode(message));
-                chat_box.appendChild(msg_div);
-                chat_box.scrollTop = chat_box.scrollHeight;
-                if (TrophyIM.activeChats['current'] != barejid.toLowerCase()) {
-                    TrophyIM.activeChats['divs'][barejid.toLowerCase()][
+                TrophyIM.addMessage(message, jid_lower);
+                if (TrophyIM.activeChats['current'] != jid_lower) {
+                    TrophyIM.activeChats['divs'][jid_lower][
                     'tab'].className = "trophyimchattab trophyimchattab_a";
                     TrophyIM.setTabPresence(from,
-                    TrophyIM.activeChats['divs'][barejid.toLowerCase()]['tab']);
+                    TrophyIM.activeChats['divs'][jid_lower]['tab']);
                 }
             }
         }
@@ -637,9 +640,15 @@ TrophyIM = {
                 TrophyIM.activeChats['divs'][barejid]['tab'].className =
                 "trophyimchattab trophyimchattab_f";
             }
+            if (!TrophyIM.chatHistory[barejid.toLowerCase()]) {
+                TrophyIM.chatHistory[barejid.toLowerCase()] = {resource: null,
+                history: new Array()};
+            }
             TrophyIM.setTabPresence(fulljid, chat_tab);
         }
-        TrophyIM.activeChats['divs'][barejid]['resource'] =
+        TrophyIM.activeChats['divs'][barejid.toLowerCase()]['resource'] =
+        Strophe.getResourceFromJid(fulljid);
+        TrophyIM.chatHistory[barejid.toLowerCase()]['resource'] =
         Strophe.getResourceFromJid(fulljid);
     },
     /** Function showChat
@@ -692,6 +701,28 @@ TrophyIM = {
             tab_div.className += " trophyimchattab_off";
         }
     },
+    /** Function: addMessage
+     *
+     *  Adds message to chat box, and history
+     *
+     *  Parameters:
+     *    (string) msg - the message to add
+     *    (string) jid - the jid of chat box to add the message to.
+     */
+    addMessage : function(msg, jid) {
+        var chat_box = getElementsByClassName('trophyimchatbox', 'div',
+        TrophyIM.activeChats['divs'][jid]['box'])[0];
+        var msg_div = document.createElement('div');
+        msg_div.className = 'trophyimchatmessage';
+        msg_div.appendChild(document.createTextNode(msg));
+        chat_box.appendChild(msg_div);
+        chat_box.scrollTop = chat_box.scrollHeight;
+        if (TrophyIM.chatHistory[jid]['history'].length > 10) {
+            TrophyIM.chatHistory[jid]['history'].shift();
+        }
+        TrophyIM.chatHistory[jid]['history'][
+        TrophyIM.chatHistory[jid]['history'].length] = msg;
+    },
     /** Function: renderRoster
      *
      *  Renders roster, looking only for jids flagged by setPresence as having
@@ -741,8 +772,39 @@ TrophyIM = {
                 }
             }
             TrophyIM.rosterObj.changes = new Array();
+            TrophyIM.constants.stale_roster = false;
         }
         setTimeout("TrophyIM.renderRoster()", 1000);
+    },
+    /** Function: renderChats
+    *
+    *  Renders chats found in TrophyIM.chatHistory.  Called upon page reload.
+    *  Waits for stale_roster flag to clear before trying to run, so that the
+    *  roster exists
+    */
+    renderChats : function() {
+        if (TrophyIM.constants.stale_roster == false) {
+            if(TrophyIM.JSONStore.store_working) {
+                var data = TrophyIM.JSONStore.getData(['chat_history',
+                'active_chat']);
+                if (data['active_chat']) {
+                    for (var jid in data['chat_history']) {
+                        fulljid = jid + "/" + data['chat_history'][jid]['resource'];
+                        Strophe.info("Makechat " + fulljid);
+                        TrophyIM.makeChat(fulljid);
+                        for (var h = 0; h <
+                        data['chat_history'][jid]['history'].length; h++) {
+                            TrophyIM.addMessage(data['chat_history'][jid]['history'][h],
+                            jid);
+                        }
+                    }
+                    TrophyIM.chat_history = data['chat_history'];
+                    TrophyIM.showChat(data['active_chat']);
+                }
+            }
+        } else {
+            setTimeout("TrophyIM.renderChats()", 1000);
+        }
     },
     /** Function: renderGroup
      *
@@ -904,6 +966,7 @@ TrophyIM = {
             }
         }
         delete TrophyIM.activeChats['divs'][barejid];
+        delete TrophyIM.chatHistory[barejid];
         //delete tab
         tab_item.parentNode.parentNode.removeChild(tab_item.parentNode);
     },
@@ -926,15 +989,8 @@ TrophyIM = {
             TrophyIM.connection.send($msg({to: to, from:
             TrophyIM.connection.jid, type: 'chat'}).c('body').t(
             message_input.value).tree());
-            var msg_div = document.createElement('div');
-            msg_div.className = 'trophyimchatmessage';
-            msg_div.appendChild(document.createTextNode("Me:\n" +
-            message_input.value));
-            var chat_box =
-            getElementsByClassName('trophyimchatbox', null,
-            active_chat['box'])[0];
-            chat_box.appendChild(msg_div);
-            chat_box.scrollTop = chat_box.scrollHeight;
+            TrophyIM.addMessage("Me:\n" + message_input.value,
+            TrophyIM.activeChats['current']);
         }
         message_input.value = '';
         message_input.focus();
@@ -1107,7 +1163,8 @@ function TrophyIMRoster() {
     this.save = function() {
         if (TrophyIM.JSONStore.store_working) {
             TrophyIM.JSONStore.setData({roster:this.roster,
-            groups:this.groups});
+            groups:this.groups, active_chat:TrophyIM.activeChats['current'],
+            chat_history:TrophyIM.chatHistory});
         }
     }
 }
