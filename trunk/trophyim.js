@@ -31,6 +31,7 @@ var TROPHYIM_BOSH_SERVICE = '/proxy/xmpp-httpbind';  //Change to suit
 var TROPHYIM_LOG_LINES = 200;
 var TROPHYIM_LOGLEVEL = 1; //0=debug, 1=info, 2=warn, 3=error, 4=fatal
 var TROPHYIM_VERSION = "0.3";
+var SOUNDON = true;
 //Uncomment to make session reattachment work
 //var TROPHYIM_JSON_STORE = "json_store.php";
 
@@ -279,6 +280,8 @@ TrophyIM = {
             DOMObjects.getHTML('cssLink'));
             //Load other .js scripts needed
             document.getElementsByTagName('head')[0].appendChild(
+            DOMObjects.getScript('/soundmanager/soundmanager.js'));
+            document.getElementsByTagName('head')[0].appendChild(
             DOMObjects.getScript('strophejs/strophe.js'));
             document.getElementsByTagName('head')[0].appendChild(
             DOMObjects.getScript('strophejs/md5.js'));
@@ -290,6 +293,7 @@ TrophyIM = {
             DOMObjects.getScript('json2.js')); //Keep this script last
             //Wait a second to give scripts time to load
             setTimeout("TrophyIM.showLogin()", 500);
+            setTimeout("TrophyIM.initSound()", 500);
         } else {
             alert("Cannot load TrophyIM client.\nClient div not found.");
         }
@@ -467,6 +471,7 @@ TrophyIM = {
         } else if (status == Strophe.Status.CONNECTED) {
             Strophe.info('Strophe is connected.');
             TrophyIM.showClient();
+            soundManagerInit();
         }
     },
 
@@ -601,6 +606,7 @@ TrophyIM = {
                 message += Strophe.getText(elems[0]);
                 TrophyIM.makeChat(from); //Make sure we have a chat window
                 TrophyIM.addMessage(message, jid_lower);
+                TrophyIM.alertSound('notify');
                 if (TrophyIM.activeChats['current'] != jid_lower) {
                     TrophyIM.activeChats['divs'][jid_lower][
                     'tab'].className = "trophyimchattab trophyimchattab_a";
@@ -611,6 +617,38 @@ TrophyIM = {
         }
         return true;
     },
+        /** Function: initSound 
+    */
+    
+    initSound : function() {
+    	if (SOUNDON == true) {
+   	 	window.onblur = function() { 
+    		focus = false;
+   	 	document.title="TrophyIM no focus";
+   	 	}
+   	 	window.onfocus = function() {
+   	 	focus = true; 
+   	 	document.title="TrophyIM in focus";
+   	 	} 
+   	 	document.onblur = window.onblur; 
+   	 	document.focus = window.focus;
+   	 }
+    },
+    
+    /** Function: alertSound
+     *
+     *  Plays alert sound upon receipt of new message.
+     *  Uses soundmanager.js to play audio/alert.mp3
+     *  plays using soundcontroller.swf, configured in sound-config.xml
+     *       
+     *  TODO: determine if window has focus first.
+     */
+     
+    alertSound : function(sound) { 	
+    	if (focus == false) {
+				soundManager.play(sound);
+		}
+	},
     /** Function: makeChat
      *
      *  Make sure chat window to given fulljid exists, switching chat context to
