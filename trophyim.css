@@ -1,118 +1,280 @@
-div.trophyimtabclose {
+/*body, title, logo*/
+
+body {
+	background-color:#9ca8bb;
+	font-family: Arial;
+	font-size: .8em;
+}
+
+.title{
+	background-color:#c0cbdb;
+	width:680px;
+}
+
+.logo{
+	background-image: url(trophyim.png);
+	background-repeat:no-repeat;
+	height: 57px;
+	width: 680px;
+	margin: 0 10px 0 0;
+	padding: 0;
+	text-indent:-9999px;
+	z-index:100;
+}
+
+
+/*primary div structure*/
+ 
+#trophyimclient {
+	margin: 5px 0 0 0;
+	padding: 0;
+	max-width:700px;
+}
+
+#trophyimlogin {
+	text-align: center;
+}
+
+#trophyimroster {
+	width: 160px;
+	height: 445px;
+	overflow-y:scroll;
+    clear: none;
+    float: left;
+    background-color:white;
+    margin: 5px 0 0 0;
+	border-top: 1px #777 solid;
+	border-left: 1px #777 solid;
+	border-right: 4px #666 solid;
+	border-bottom: 4px #555 solid;
+}
+
+#trophyimstatuslist {
+	text-align: center;
+}
+
+#trophyimchattabs {
+    width: 480px;
+    overflow-y:scroll;
+    font-size: .8em;
+}
+
+#trophyimchat {
+	height:435px;
+	 background-color:white;
+    clear: right;
+    float: left;
+    margin: 5px 0 0 10px;
+    padding: 10px 10px 0 10px;
+	border-top: 1px #777 solid;
+	border-left: 1px #777 solid;
+	border-right: 4px #666 solid;
+	border-bottom: 4px #555 solid;
+}
+
+#trophyimstatus {
+    width: 180px;
+    padding:10px 5px 5px 10px;
+    clear: both;
+}
+
+#trophyimlog {
+	margin:20px 0 0 0;
+	width: 680px;
+	height: 300px;
+	overflow: auto;
+	background-color:#eee;
+}
+
+
+/*im friend roster*/
+
+.trophyimrostername {
+    padding: 1px 3px 1px 3px;
+    font-size: .8em;
+}
+
+.trophyimrostergroup {
+	border-top: 1px #ccc solid;
+	border-left: 1px #ccc solid;
+	border-right: 4px #999 solid;
+	border-bottom: 4px #999 solid;
+	padding: 5px;
+/* 	padding:0 5px 10px 5px; */
+	margin: 10px 5px 10px 10px;
+	background-color:#eee;
+}
+
+.trophyimrosterlabel {
+	color: #346185;
+	font-size: 1em;
+	font-weight: bold;
+	padding: 0 0 5px 0;
+}
+
+.trophyimrosterjid {
+	/*hide jabber id from roster listing*/
+    display: none; 
+}
+
+
+/*im friend roster statuses*/
+
+.trophyimrosteritem {
+	border: 1px #666 solid;
+}
+
+.trophyimrosteritem_av { /*Available*/
+	color: #000000;
+	background-color:#a4ff9a;
+	font-weight:bold;
+}
+
+.trophyimrosteritem_aw { /*Away*/
+	color: #555;
+	background-color:#fbffbf;
+}
+
+.trophyimrosteritem_off { /*Offline*/
+	color: #333;
+	font-style: italic;
+	background-color:#ccc;
+}
+
+
+/*im open tabs*/
+
+.trophyimtabclose {
+	background-color:#ccc;
     color: #000000;
     font-size: 8px;
     text-align: right;
     cursor: default;
     float: right;
-    border: 1px black solid;
+    	border-top: 1px #ccc solid;
+	border-left: 1px #ccc solid;
+	border-right: 2px #888 solid;
+	border-bottom: 2px #888 solid;
     margin-left: 1px;
-    padding-left: 1px;
+    padding: 0 2px 1px 2px;
+    line-height:90%;
+    font-family:  Arial;
+    font-weight:bold;
 }
-div#trophyimclient {
+
+.trophyimtabclose:active {
+   border-bottom: 1px #ccc solid;
+	border-right: 1px #ccc solid;
+	border-left: 2px #888 solid;
+	border-top: 2px #888 solid;
 }
-div#trophyimlogin {
-	text-align: center;
+
+.trophyimchattabjid {
+	/*hide jabber id from open tab listing*/
+    display: none; 
 }
-div#trophyimroster {
-	width: 200px;
-	height: 400px;
-	overflow: scroll;
-    clear: none;
-    float: left;
-}
-div#trophyimchat {
-	border: 1px black solid;
-    clear: right;
-    float: left;
-}
-div#trophyimstatus {
-    width: 200px;
-	border: 2px black solid;
-    clear: both;
-}
-div#trophyimlog {
-	width: 480px;
-	height: 300px;
-	overflow: auto;
-}
-div.trophyimlogitem {
-	border: 1px black solid;
-}
-div.trophyimrosteritem {
-	border: 1px black solid;
-}
-div.trophyimchattab_av { /*Available*/
-	color: #000000;
-}
-div.trophyimchattab_aw { /*Away*/
-	color: #a00000;
-}
-div.trophyimchattab_off { /*Offline*/
-	color: #808080;
-	font-style: italic;
-}
-div.trophyimrosteritem_av { /*Available*/
-	color: #000000;
-}
-div.trophyimrosteritem_aw { /*Away*/
-	color: #a00000;
-}
-div.trophyimrosteritem_off { /*Offline*/
-	color: #808080;
-	font-style: italic;
-}
-div.trophyimchattabjid {
-    display: none;
-}
-div.trophyimchattabname {
-    margin-right: 1px;
-    padding: 2px;
-}
-div.trophyimrosterjid {
-    display: none;
-}
-div.trophyimrostername {
-    padding-left: 3px;
-}
-div.trophyimrostergroup {
-	border: 2px blue solid;
-}
-div.trophyimrosterlabel {
-	font-weight: bold;
-}
-div#trophyimchattabs {
-	border: 1px green solid;
-    width: 480px;
-    overflow: auto;
-}
-div.trophyimchattab {
+
+.trophyimchattab {
     clear: none;
     float: left;
     cursor: pointer;
+    height:12px;
+    width:102px;
+    padding:3px;
+    line-height:140%;
+    word-break: break-all;
+    overflow:hidden;
 }
-div.trophyimchattab_f { /*Foreground*/
-	border: 2px blue solid;
+
+.trophyimchattabname {
+    margin-right: 1px;
+    padding: 2px;
 }
-div.trophyimchattab_b { /*Background*/
-	border: 1px green solid;
-    margin: 1px;
+
+
+/*im open tab statuses & position*/
+
+.trophyimchattab_f { /*Foreground*/
+	margin:1px;
+	border-top: 1px #ccc solid;
+	border-left: 1px #ccc solid;
+	border-right: 2px #999 solid;
+	border-bottom: 2px #999 solid;
+	background-color:#d1e5ff;
 }
-div.trophyimchattab_a { /*Alert (background/has new message)*/
-	border: 1px red solid;
-    margin: 1px;
+
+.trophyimchattab_b { /*Background*/
+    margin: 2px;
+    	border-top: 1px #ccc solid;
+	border-left: 1px #ccc solid;
+	border-right: 2px #999 solid;
+	border-bottom: 2px #999 solid;
 }
-div.trophyimchatbox { /*Collection of chat messages*/
+
+.trophyimchattab_a { /*Alert (background/has new message)*/
+    margin: 2px;
+    	border-top: 1px #ccc solid;
+	border-left: 1px #ccc solid;
+	border-right: 2px #999 solid;
+	border-bottom: 2px #999 solid;
+    color:black;
+    font-weight:bold;
+    background-color:#ffd677;
+}
+
+.trophyimchattab_av { /*Available*/
+	margin: 2px;
+		border-top: 1px #ccc solid;
+	border-left: 1px #ccc solid;
+	border-right: 2px #999 solid;
+	border-bottom: 2px #999 solid;
+	color: #000000;
+}
+
+.trophyimchattab_aw { /*Away*/
+	margin: 2px;
+		border-top: 1px #ccc solid;
+	border-left: 1px #ccc solid;
+	border-right: 2px #999 solid;
+	border-bottom: 2px #999 solid;
+	color: #777;
+	background-color:#eee;
+}
+
+.trophyimchattab_off { /*Offline*/
+	color: #333;
+	background-color:#ccc;
+	font-style: italic;
+}
+
+
+/*im chat area*/
+
+.trophyimchatbox { /*Collection of chat messages*/
 	height: 300px;
 	width: 480px;
-	overflow: scroll;
+	overflow-y: scroll;
 }
+
+.trophyimchatmessage { /*Each individual chat message*/
+	white-space: pre-wrap;
+	padding:5px;
+	width: 450px;
+	border-top: 1px dotted #ddd;
+	border-bottom: 1px solid #e7eafb;
+    background-image: url(textbg.png);
+    background-repeat: repeat-x;
+    background-position: bottom;
+    background-color:white;
+}
+
 textarea.trophyimchatinput {
 }
-div.trophyimchatmessage { /*Each individual chat message*/
-	white-space: pre-wrap;
-	width: 100%;
-    border-bottom: 1px black dotted;
-}
-div#trophyimstatuslist {
-	text-align: center;
+
+
+/*log*/
+
+.trophyimlogitem {
+	border-bottom: 1px #ccc dotted;
+	padding:5px;
 }
