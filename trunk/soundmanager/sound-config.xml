@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- SoundManager Flash configuration -->
+<!-- Sound IDs are referenced from JS -->
+
+<items baseHref="/audio/" defaultVol="60">
+ <sound id="notify" href="notify.mp3" />
+</items>
