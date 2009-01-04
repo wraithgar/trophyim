@@ -8,6 +8,7 @@
 --0.4
 add chats to json store
 Mouseover status messages in roster
+rosterClick shouldn't call makeChat if it doesn't have to
 HTML in messages (xslt?)
 Select presence status/message
 Optional user-specified resource
@@ -20,8 +21,6 @@ roster management
 figure out how we want to handle presence from our own jid (and transports)
 roster sorting by presence / offline roster capablility
 auto-subscribe vs prompted subscribe based on config option
-make sure makeChat() et al. can handle empty resources
-    (offline chat capabilities)
 --1.0 (or whenever someone submits better .css)
 layout overhaul
 code cleanup (like checking for excessive function lengths)
@@ -80,7 +79,7 @@ HTMLSnippets = {
     chatArea : "<div id='trophyimchat'><div id='trophyimchattabs' /></div>",
     chatBox : "<div><div class='trophyimchatbox' />\
         <form name='chat' onsubmit='TrophyIM.sendMessage(this); return(false);'>\
-        <textarea class='trophyimchatinput' rows='3' cols='50'></textarea>\
+        <input type='text' class='trophyimchatinput' />\
         <input type='button' value='Send' onclick='TrophyIM.sendMessage(this)' />\
         </form></div>",
     chatTab :
@@ -925,13 +924,7 @@ TrophyIM = {
     rosterClick : function(roster_item) {
         var barejid = getElementsByClassName('trophyimrosterjid', null,
         roster_item)[0].firstChild.nodeValue;
-        var presence = TrophyIM.rosterObj.getPresence(barejid);
-        if (presence && presence['resource']) {
-            var fulljid = barejid + "/" + presence['resource'];
-        } else {
-            var fulljid = barejid;
-        }
-        TrophyIM.makeChat(fulljid);
+        TrophyIM.makeChat(barejid);
         TrophyIM.showChat(barejid);
     },
     /** Function: tabClick
