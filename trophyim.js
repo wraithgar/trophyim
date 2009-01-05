@@ -203,8 +203,9 @@ TrophyIM = {
     /** Constants:
      *
      *    (Boolean) stale_roster - roster is stale and needs to be rewritten.
+     *    (Boolean) focus - whether or not client has focus
      */
-    constants : {stale_roster: false},
+    constants : {stale_roster: false, focus: true},
     /** Object: chatHistory
      *
      *  Stores chat history (last 10 message) and current presence of active
@@ -280,7 +281,7 @@ TrophyIM = {
             DOMObjects.getHTML('cssLink'));
             //Load other .js scripts needed
             document.getElementsByTagName('head')[0].appendChild(
-            DOMObjects.getScript('/soundmanager/soundmanager.js'));
+            DOMObjects.getScript('soundmanager/soundmanager.js'));
             document.getElementsByTagName('head')[0].appendChild(
             DOMObjects.getScript('strophejs/strophe.js'));
             document.getElementsByTagName('head')[0].appendChild(
@@ -292,8 +293,8 @@ TrophyIM = {
             document.getElementsByTagName('head')[0].appendChild(
             DOMObjects.getScript('json2.js')); //Keep this script last
             //Wait a second to give scripts time to load
+            setTimeout("TrophyIM.initSound()", 250);
             setTimeout("TrophyIM.showLogin()", 500);
-            setTimeout("TrophyIM.initSound()", 500);
         } else {
             alert("Cannot load TrophyIM client.\nClient div not found.");
         }
@@ -318,7 +319,9 @@ TrophyIM = {
     showLogin : function() {
         //JSON is the last script to load, so we wait on it
         //Added Strophe check too because of bug where it's sometimes missing
-        if (typeof(JSON) != undefined && typeof(Strophe) != undefined) {
+        if (typeof(JSON) != undefined && typeof(Strophe) != undefined &&
+        typeof(soundManagerInit) != undefined) {
+            soundManagerInit();
             TrophyIM.JSONStore = new TrophyIMJSONStore();
             if (TrophyIM.JSONStore.store_working && TrophyIM.cookies['trophyim_bosh_xid']) {
                 var xids = TrophyIM.cookies['trophyim_bosh_xid'].split("|");
@@ -471,7 +474,6 @@ TrophyIM = {
         } else if (status == Strophe.Status.CONNECTED) {
             Strophe.info('Strophe is connected.');
             TrophyIM.showClient();
-            soundManagerInit();
         }
     },
 
@@ -617,38 +619,44 @@ TrophyIM = {
         }
         return true;
     },
-        /** Function: initSound 
+    /** Function: initSound 
+     *
+     *  This function sets up the onblur and onfocus handlers that alert
+     *  TrophyIM as to when the client does or doesn't have focus.  Focus status
+     *  is stored in TrophyIM.constants.has_focus
     */
     
     initSound : function() {
-    	if (SOUNDON == true) {
-   	 	window.onblur = function() { 
-    		focus = false;
-   	 	document.title="TrophyIM no focus";
-   	 	}
-   	 	window.onfocus = function() {
-   	 	focus = true; 
-   	 	document.title="TrophyIM in focus";
-   	 	} 
-   	 	document.onblur = window.onblur; 
-   	 	document.focus = window.focus;
-   	 }
+        //FIXME make sure we're not clobbering an existing
+        //window/document.onblur/focus
+        if (SOUNDON == true) {
+            Strophe.debug("Sound on");
+            window.onblur = function() {
+                TrophyIM.constants.has_focus = false;
+            }
+            window.onfocus = function() {
+                TrophyIM.constants.has_focus = true; 
+            } 
+        document.onblur = window.onblur; 
+        document.focus = window.focus;
+        }
     },
     
     /** Function: alertSound
      *
      *  Plays alert sound upon receipt of new message.
-     *  Uses soundmanager.js to play audio/alert.mp3
-     *  plays using soundcontroller.swf, configured in sound-config.xml
-     *       
-     *  TODO: determine if window has focus first.
+     *
+     *  Parameters:
+     *    (String) sound - name of sound as defined in
+     *      soundmanager/sound-config.xml
      */
      
     alertSound : function(sound) { 	
-    	if (focus == false) {
-				soundManager.play(sound);
-		}
+    	if (TrophyIM.constants.has_focus == false) {
+            soundManager.play(sound);
+        }
 	},
+
     /** Function: makeChat
      *
      *  Make sure chat window to given fulljid exists, switching chat context to
