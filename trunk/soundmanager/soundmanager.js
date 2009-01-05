@@ -168,7 +168,7 @@ function SoundManagerNull() {
 }
 
 function writeDebug(msg) {
-  var o = document.getElementById('debugContainer');
+  var o = document.getElementById('trophyimlog');
   if (!o) return false;
   var d = document.createElement('div');
   d.innerHTML = msg;

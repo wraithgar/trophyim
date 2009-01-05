@@ -7,3 +7,6 @@ which is in the public domain.
 
 getElementsByClassName is from http://code.google.com/p/getelementsbyclassname/
 which falls under the MIT license also.
+
+soundmanager is from http://www.schillmania.com/projects/soundmanager/ which
+falls under the BSD license.  See soundmanager/license.txt for more info.
