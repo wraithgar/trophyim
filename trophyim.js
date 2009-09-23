@@ -553,6 +553,9 @@ TrophyIM = {
         for (var i = 0; i < roster_items.length; i++) {
             var groups = roster_items[i].getElementsByTagName('group');
             var group_array = new Array();
+	    if (groups.length == 0) {
+		group_array[group_array.length] = "";
+	    }
             for (var g = 0; g < groups.length; g++) {
                 group_array[group_array.length] =
                 groups[g].firstChild.nodeValue;
