@@ -49,10 +49,6 @@ body {
 	border-bottom: 4px #555 solid;
 }
 
-#trophyimstatuslist {
-	text-align: center;
-}
-
 #trophyimchattabs {
     width: 480px;
     overflow-y:scroll;
@@ -76,6 +72,15 @@ body {
     width: 180px;
     padding:10px 5px 5px 10px;
     clear: both;
+}
+
+#trophyimstatusselect {
+}
+
+#trophyimstatustext {
+}
+
+#trophyimstatusbutton {
 }
 
 #trophyimlog {
