@@ -28,6 +28,7 @@ roster versioning http://xmpp.org/extensions/attic/xep-0237-0.1.html
 make sure onload bootstrapping actually preserves existing onloads
 */
 var TROPHYIM_BOSH_SERVICE = '/proxy/xmpp-httpbind';  //Change to suit
+var TROPHYIM_BOSH_SERVICE = '/http-bind';  //Change to suit
 var TROPHYIM_LOG_LINES = 200;
 var TROPHYIM_LOGLEVEL = 1; //0=debug, 1=info, 2=warn, 3=error, 4=fatal
 var TROPHYIM_VERSION = "0.3";
@@ -64,8 +65,16 @@ HTMLSnippets = {
         <input type='password' id='trophyimpass' /><br />\
         <label for='trophyimloglevel'>Logging</label>\
         <input type='checkbox' id='trophyimloglevel' /><br />\
-        <input type='button' id='trophyimconnect' value='connect'\
-        onclick='TrophyIM.login()'/></form></div>",
+        <select id='trophyimstatusselect'>\
+        <option value='online'>online</option>\
+        <option value='chat'>willing to chat</option>\
+        <option value='dnd'>do not disturb</option>\
+        <option value='xa'>not available</option>\
+        <option value='offline'>offline</option>\
+        </select>\
+        <input id='trophyimstatustext' type='text'/>\
+        <input id='trophyimstatusbutton' type='button' value='set' \
+        onclick='TrophyIM.updatePresence()'/></form></div>",
     loggingDiv : "<div id='trophyimlog' />",
     rosterDiv : "<div id='trophyimroster' />",
     rosterGroup : "<div class='trophyimrostergroup'>\
@@ -74,8 +83,17 @@ HTMLSnippets = {
         onclick='TrophyIM.rosterClick(this)'><div class='trophyimrosterjid' />\
         <div class='trophyimrostername' /></div>",
     statusDiv : "<div id='trophyimstatus'><span>Status:</span>\
-        <span id='trophyimstatuslist'>Select box</span><br /><form>\
-        <input type='button' value='disconnect' onclick='TrophyIM.logout()'/>\
+        <form>\
+        <select id='trophyimstatusselect'>\
+        <option value='online'>online</option>\
+        <option value='chat'>willing to chat</option>\
+        <option value='dnd'>do not disturb</option>\
+        <option value='xa'>not available</option>\
+        <option value='offline'>offline</option>\
+        </select>\
+        <input id='trophyimstatustext' type='text'/>\
+        <input id='trophyimstatusbutton' type='button' value='set'\
+        onclick='TrophyIM.updatePresence()'/>\
         </form></div>",
     chatArea : "<div id='trophyimchat'><div id='trophyimchattabs' /></div>",
     chatBox : "<div><div class='trophyimchatbox' />\
@@ -392,6 +410,37 @@ TrophyIM = {
     rawOutput : function (data) {
         Strophe.debug("SEND: " + data);
     },
+    /** Function: updatePresence
+     *
+     * This function update the status, changing the presence (online,
+     * offline, away...), and/or updating the status message. It may call login
+     * of logout if such status are selected.
+     */
+    updatePresence : function() {
+	TrophyIM.pres_show = document.getElementById('trophyimstatusselect').value;
+        TrophyIM.pres_status = document.getElementById('trophyimstatustext').value;
+	if (TrophyIM.pres_status == "") TrophyIM.pres_status = null;
+	if ((TrophyIM.pres_show != "offline") && 
+	    ((!TrophyIM.connection) || 
+	     (TrophyIM.connection.connected == false))) {
+	    if (TrophyIM.pres_show == "online") TrophyIM.pres_show=null;
+	    TrophyIM.login();
+	} else if ((TrophyIM.pres_show == "offline") &&
+	    ((TrophyIM.connection != null) && 
+	     (TrophyIM.connection.connected == true))) {
+		TrophyIM.logout();
+	    } else if ((TrophyIM.connection != null) && 
+		       (TrophyIM.connection.connected == true)) {
+	    presence = $pres()
+	    if (TrophyIM.pres_show) {
+		presence.c('show').t(TrophyIM.pres_show).up()
+	    }
+	    if (TrophyIM.pres_status) {
+		presence.c('status').t(TrophyIM.pres_status).up()
+	    }
+	    TrophyIM.connection.send(presence.tree());
+	}
+    },
     /** Function: login
      *
      *  This function logs into server using information given on login page.
@@ -426,15 +475,7 @@ TrophyIM = {
         var fulljid = barejid + '/TrophyIM';
         TrophyIM.setCookie('trophyimjid', barejid);
         var password = document.getElementById('trophyimpass').value;
-        var button = document.getElementById('trophyimconnect');
-        if (button.value == 'connect') {
-            button.value = 'disconnect';
-            TrophyIM.connection.connect(fulljid, password, TrophyIM.onConnect);
-        } else {
-            button.value = 'connect';
-            TrophyIM.connection.disconnect();
-        }
-
+	TrophyIM.connection.connect(fulljid, password, TrophyIM.onConnect);
     },
     /** Function: login
      *
@@ -505,7 +546,14 @@ TrophyIM = {
         //Get roster then announce presence.
         TrophyIM.connection.send($iq({type: 'get', xmlns: Strophe.NS.CLIENT}).c(
         'query', {xmlns: Strophe.NS.ROSTER}).tree());
-        TrophyIM.connection.send($pres().tree());
+	presence = $pres()
+	if (TrophyIM.pres_show) {
+	    presence.c('show').t(TrophyIM.pres_show).up()
+	}
+	if (TrophyIM.pres_status) {
+	    presence.c('status').t(TrophyIM.pres_status).up()
+	}
+        TrophyIM.connection.send(presence.tree());
         TrophyIM.renderChats();
         setTimeout("TrophyIM.renderRoster()", 1000);
     },
