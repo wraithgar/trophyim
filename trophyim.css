@@ -140,7 +140,18 @@ body {
 	background-color:#fbffbf;
 }
 
+.trophyimrosteritem_xa { /* Extended Away */
+    color: #555;
+    color: #ff9933;
+}
+
+.trophyimrosteritem_dnd { /* Do Not Disturb */
+    color: #000000;
+    background-color:ff3333;
+}
+
 .trophyimrosteritem_off { /*Offline*/
+        display: none;
 	color: #333;
 	font-style: italic;
 	background-color:#ccc;
