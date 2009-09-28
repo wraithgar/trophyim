@@ -28,7 +28,6 @@ roster versioning http://xmpp.org/extensions/attic/xep-0237-0.1.html
 make sure onload bootstrapping actually preserves existing onloads
 */
 var TROPHYIM_BOSH_SERVICE = '/proxy/xmpp-httpbind';  //Change to suit
-var TROPHYIM_BOSH_SERVICE = '/http-bind';  //Change to suit
 var TROPHYIM_LOG_LINES = 200;
 var TROPHYIM_LOGLEVEL = 1; //0=debug, 1=info, 2=warn, 3=error, 4=fatal
 var TROPHYIM_VERSION = "0.3";
@@ -68,8 +67,9 @@ HTMLSnippets = {
         <select id='trophyimstatusselect'>\
         <option value='online'>online</option>\
         <option value='chat'>willing to chat</option>\
-        <option value='dnd'>do not disturb</option>\
+        <option value='away'>away</option>\
         <option value='xa'>not available</option>\
+        <option value='dnd'>do not disturb</option>\
         <option value='offline'>offline</option>\
         </select>\
         <input id='trophyimstatustext' type='text'/>\
@@ -87,8 +87,9 @@ HTMLSnippets = {
         <select id='trophyimstatusselect'>\
         <option value='online'>online</option>\
         <option value='chat'>willing to chat</option>\
-        <option value='dnd'>do not disturb</option>\
+        <option value='away'>away</option>\
         <option value='xa'>not available</option>\
+        <option value='dnd'>do not disturb</option>\
         <option value='offline'>offline</option>\
         </select>\
         <input id='trophyimstatustext' type='text'/>\
@@ -417,26 +418,27 @@ TrophyIM = {
      * of logout if such status are selected.
      */
     updatePresence : function() {
-	TrophyIM.pres_show = document.getElementById('trophyimstatusselect').value;
-        TrophyIM.pres_status = document.getElementById('trophyimstatustext').value;
-	if (TrophyIM.pres_status == "") TrophyIM.pres_status = null;
-	if ((TrophyIM.pres_show != "offline") && 
+	TrophyIM.mypresence = {resource:null, priority:null, show:null, status:null};
+	TrophyIM.mypresence['show'] = document.getElementById('trophyimstatusselect').value;
+	TrophyIM.mypresence['status'] = document.getElementById('trophyimstatustext').value;
+	if (TrophyIM.mypresence['status'] == "") TrophyIM.mypresence['status'] = null;
+	if ((TrophyIM.mypresence['show'] != "offline") && 
 	    ((!TrophyIM.connection) || 
 	     (TrophyIM.connection.connected == false))) {
-	    if (TrophyIM.pres_show == "online") TrophyIM.pres_show=null;
+	    if (TrophyIM.mypresence['show'] == "online") TrophyIM.mypresence['show']=null;
 	    TrophyIM.login();
-	} else if ((TrophyIM.pres_show == "offline") &&
+	} else if ((TrophyIM.mypresence['show'] == "offline") &&
 	    ((TrophyIM.connection != null) && 
 	     (TrophyIM.connection.connected == true))) {
 		TrophyIM.logout();
 	    } else if ((TrophyIM.connection != null) && 
 		       (TrophyIM.connection.connected == true)) {
 	    presence = $pres()
-	    if (TrophyIM.pres_show) {
-		presence.c('show').t(TrophyIM.pres_show).up()
+	    if (TrophyIM.mypresence['show']) {
+		presence.c('show').t(TrophyIM.mypresence['show']).up()
 	    }
-	    if (TrophyIM.pres_status) {
-		presence.c('status').t(TrophyIM.pres_status).up()
+	    if (TrophyIM.mypresence['status']) {
+		presence.c('status').t(TrophyIM.mypresence['status']).up()
 	    }
 	    TrophyIM.connection.send(presence.tree());
 	}
@@ -547,11 +549,18 @@ TrophyIM = {
         TrophyIM.connection.send($iq({type: 'get', xmlns: Strophe.NS.CLIENT}).c(
         'query', {xmlns: Strophe.NS.ROSTER}).tree());
 	presence = $pres()
-	if (TrophyIM.pres_show) {
-	    presence.c('show').t(TrophyIM.pres_show).up()
+	if (TrophyIM.mypresence['show']) {
+	    presence.c('show').t(TrophyIM.mypresence['show']).up()
+	    var selectbox = document.getElementById('trophyimstatusselect');
+	    for (var i=0; i<selectbox.options.length; i++) {
+		if (selectbox.options[i].value == TrophyIM.mypresence['show']) {
+		    selectbox.options[i].selected = 'true';
+		}
+	    }
 	}
-	if (TrophyIM.pres_status) {
-	    presence.c('status').t(TrophyIM.pres_status).up()
+	if (TrophyIM.mypresence['status']) {
+	    presence.c('status').t(TrophyIM.mypresence['status']).up()
+	    document.getElementById('trophyimstatustext').value = TrophyIM.mypresence['status'];
 	}
         TrophyIM.connection.send(presence.tree());
         TrophyIM.renderChats();
@@ -1003,10 +1012,20 @@ TrophyIM = {
                     new_presence['show'] == "chat") {
                         new_member.className =
                         "trophyimrosteritem trophyimrosteritem_av";
-                    } else {
+                    } else if (new_presence['show'] == "away") {
                         new_member.className =
                         "trophyimrosteritem trophyimrosteritem_aw";
+                    } else if (new_presence['show'] == "xa") {
+                        new_member.className =
+                        "trophyimrosteritem trophyimrosteritem_xa";
+                    } else if (new_presence['show'] == "dnd") {
+                        new_member.className =
+                        "trophyimrosteritem trophyimrosteritem_dnd";
+                    } else {
+                        new_member.className =
+                        "trophyimrosteritem trophyimrosteritem_off";
                     }
+		    
                 } else {
                     //show offline
                 }
