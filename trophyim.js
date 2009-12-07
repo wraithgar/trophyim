@@ -545,12 +545,10 @@ TrophyIM = {
         null, null, null);
         TrophyIM.connection.addHandler(TrophyIM.onMessage, null, 'message',
         null, null,  null);
-        //Get roster then announce presence.
+        //Get roster.
         TrophyIM.connection.send($iq({type: 'get', xmlns: Strophe.NS.CLIENT}).c(
         'query', {xmlns: Strophe.NS.ROSTER}).tree());
-	presence = $pres()
 	if (TrophyIM.mypresence['show']) {
-	    presence.c('show').t(TrophyIM.mypresence['show']).up()
 	    var selectbox = document.getElementById('trophyimstatusselect');
 	    for (var i=0; i<selectbox.options.length; i++) {
 		if (selectbox.options[i].value == TrophyIM.mypresence['show']) {
@@ -558,11 +556,6 @@ TrophyIM = {
 		}
 	    }
 	}
-	if (TrophyIM.mypresence['status']) {
-	    presence.c('status').t(TrophyIM.mypresence['status']).up()
-	    document.getElementById('trophyimstatustext').value = TrophyIM.mypresence['status'];
-	}
-        TrophyIM.connection.send(presence.tree());
         TrophyIM.renderChats();
         setTimeout("TrophyIM.renderRoster()", 1000);
     },
@@ -625,6 +618,9 @@ TrophyIM = {
             TrophyIM.connection.send($iq({type: 'reply', id:
             msg.getAttribute('id'), to: msg.getAttribute('from')}).tree());
         }
+	/* now that we got the roster, update our presence (avoids duplicate
+	   entries if we receive presence before getting the roster) */
+        TrophyIM.updatePresence();
         return true;
     },
     /** Function: onPresence
